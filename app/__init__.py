@@ -1,5 +1,5 @@
 from flask import Flask
-from .extensions import db, login_manager, csrf, limiter, mail, migrate, oauth
+from .extensions import db, login_manager, csrf, limiter, migrate, oauth
 from .filters import register_filters
 
 
@@ -17,7 +17,6 @@ def create_app(config_name=None):
     login_manager.init_app(app)
     csrf.init_app(app)
     limiter.init_app(app)
-    mail.init_app(app)
     migrate.init_app(app, db)
     oauth.init_app(app)
 

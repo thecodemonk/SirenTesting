@@ -1,7 +1,6 @@
 from datetime import date, timedelta
 from flask import current_app
-from flask_mail import Message
-from .extensions import db, mail
+from .extensions import db
 from .models import Test, Assignment
 
 
@@ -67,13 +66,13 @@ def get_all_siren_statuses(sirens, year=None):
 def notify_admins(subject, body):
     """Send email notification to all admin users. Fire-and-forget."""
     from .models import AdminUser
+    from .gmail import send_email
     try:
         admins = AdminUser.query.all()
         recipients = [a.email for a in admins if a.email]
         if not recipients:
             return
-        msg = Message(subject=subject, recipients=recipients, body=body)
-        mail.send(msg)
+        send_email(subject, body, recipients)
     except Exception as e:
         current_app.logger.error(f'Failed to send admin notification: {e}')
 
