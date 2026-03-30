@@ -29,14 +29,14 @@ def get_siren_status(siren, year=None):
     if latest_test and latest_test.passed:
         return 'passed'
 
-    # No test this year — check if overdue (>12 months since last pass or never tested)
-    last_passing = (
+    # No test this year — check if overdue (no test at all in over 12 months)
+    last_test_ever = (
         Test.query
-        .filter_by(siren_id=siren.id, passed=True)
+        .filter_by(siren_id=siren.id)
         .order_by(Test.test_date.desc())
         .first()
     )
-    if last_passing is None or last_passing.test_date < today - timedelta(days=365):
+    if last_test_ever is None or last_test_ever.test_date < today - timedelta(days=365):
         return 'overdue'
 
     # Manually flagged for recheck
