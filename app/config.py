@@ -22,6 +22,9 @@ class BaseConfig:
     RECAPTCHA_SITE_KEY = os.environ.get('RECAPTCHA_SITE_KEY', '')
     RECAPTCHA_SECRET_KEY = os.environ.get('RECAPTCHA_SECRET_KEY', '')
 
+    MEDIA_FOLDER = os.path.join(BASE_DIR, 'media', 'photos')
+    MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB
+
     TIMEZONE = 'America/New_York'
 
 

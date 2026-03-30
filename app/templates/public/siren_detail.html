@@ -48,6 +48,7 @@
         <th>Rotation</th>
         <th>Veg/Damage</th>
         <th>Notes</th>
+        <th>Photo</th>
       </tr>
     </thead>
     <tbody>
@@ -60,6 +61,14 @@
         <td>{{ test.rotation_ok | yesno }}</td>
         <td>{{ test.vegetation_damage_ok | yesno }}</td>
         <td>{{ test.notes or '' }}</td>
+        <td>
+          {% if test.photo_filename %}
+          <a href="{{ url_for('media_photo', filename=test.photo_filename) }}" target="_blank">
+            <img src="{{ url_for('media_photo', filename=test.photo_filename.replace('.jpg', '_thumb.jpg')) }}"
+                 alt="Test photo" class="rounded" style="max-height: 50px;">
+          </a>
+          {% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>

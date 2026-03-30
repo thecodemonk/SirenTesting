@@ -39,6 +39,7 @@ class Test(db.Model):
     rotation_ok = db.Column(db.Boolean, nullable=True)  # NULL for FIXED type
     vegetation_damage_ok = db.Column(db.Boolean, nullable=False)
     notes = db.Column(db.Text)
+    photo_filename = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (

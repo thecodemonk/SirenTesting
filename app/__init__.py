@@ -1,4 +1,6 @@
-from flask import Flask
+import os
+
+from flask import Flask, send_from_directory
 from .extensions import db, login_manager, csrf, limiter, migrate, oauth
 from .filters import register_filters
 
@@ -29,5 +31,11 @@ def create_app(config_name=None):
     app.register_blueprint(auth_bp)
     app.register_blueprint(public_bp)
     app.register_blueprint(admin_bp)
+
+    os.makedirs(app.config['MEDIA_FOLDER'], exist_ok=True)
+
+    @app.route('/media/photos/<filename>')
+    def media_photo(filename):
+        return send_from_directory(app.config['MEDIA_FOLDER'], filename)
 
     return app

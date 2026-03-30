@@ -13,7 +13,7 @@ from .forms import SirenForm, TestForm
 from . import admin_bp
 from ..extensions import db
 from ..models import Siren, Test, Assignment, TestSchedule, AdminUser
-from ..utils import generate_first_mondays
+from ..utils import generate_first_mondays, save_test_photo, delete_test_photo
 
 
 # --- Sirens ---
@@ -131,6 +131,12 @@ def test_add():
                 matching.status = 'COMPLETED'
 
         db.session.commit()
+
+        # Save photo after commit so we have the test ID
+        if form.photo.data:
+            test.photo_filename = save_test_photo(form.photo.data, test.id)
+            db.session.commit()
+
         flash('Test result recorded.', 'success')
         if assignment_id:
             return redirect(url_for('admin.assignments'))
@@ -166,18 +172,27 @@ def test_edit(id):
         test.rotation_ok = form.rotation_ok.data if siren.siren_type == 'ROTATE' else None
         test.vegetation_damage_ok = form.vegetation_damage_ok.data
         test.notes = form.notes.data.strip() if form.notes.data else None
+
+        if form.photo.data:
+            # Remove old photo if replacing
+            if test.photo_filename:
+                delete_test_photo(test.photo_filename)
+            test.photo_filename = save_test_photo(form.photo.data, test.id)
+
         db.session.commit()
         flash('Test result updated.', 'success')
         return redirect(url_for('admin.tests'))
 
     return render_template('admin/test_form.html', form=form, siren_types=siren_types,
-                           editing=True)
+                           editing=True, test=test)
 
 
 @admin_bp.route('/tests/<int:id>/delete', methods=['POST'])
 @admin_required
 def test_delete(id):
     test = db.session.get(Test, id) or abort(404)
+    if test.photo_filename:
+        delete_test_photo(test.photo_filename)
     db.session.delete(test)
     db.session.commit()
     flash('Test result deleted.', 'info')

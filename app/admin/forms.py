@@ -1,4 +1,5 @@
 from flask_wtf import FlaskForm
+from flask_wtf.file import FileField, FileAllowed
 from wtforms import (
     StringField, SelectField, BooleanField, TextAreaField, DateField,
 )
@@ -25,3 +26,6 @@ class TestForm(FlaskForm):
     rotation_ok = BooleanField('Rotation')
     vegetation_damage_ok = BooleanField('Vegetation and/or Damage')
     notes = TextAreaField('Notes', validators=[Optional(), Length(max=2000)])
+    photo = FileField('Test Photo', validators=[
+        FileAllowed(['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'], 'Images only')
+    ])

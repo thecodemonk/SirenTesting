@@ -16,3 +16,5 @@ env/
 
 *.log
 .DS_Store
+
+media/photos/
