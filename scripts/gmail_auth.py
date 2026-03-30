@@ -19,7 +19,10 @@ load_dotenv()
 
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+SCOPES = [
+    'https://www.googleapis.com/auth/gmail.send',
+    'https://www.googleapis.com/auth/gmail.settings.sharing',
+]
 TOKEN_PATH = os.path.join('instance', 'gmail_token.json')
 
 
@@ -43,7 +46,7 @@ def main():
     }
 
     flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-    creds = flow.run_local_server(port=8090)
+    creds = flow.run_local_server(port=8090, prompt='consent', access_type='offline')
 
     os.makedirs('instance', exist_ok=True)
     with open(TOKEN_PATH, 'w') as f:
