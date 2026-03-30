@@ -5,7 +5,8 @@ def status_class(status):
     """Map siren status to Bootstrap contextual class."""
     return {
         'failed': 'table-danger',
-        'assigned': 'table-warning',
+        'overdue': 'table-warning',
+        'assigned': 'table-info',
         'flagged': 'table-info',
         'passed': 'table-success',
         'untested': '',

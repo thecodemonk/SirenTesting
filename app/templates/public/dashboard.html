@@ -24,9 +24,23 @@
     <button type="button" class="btn btn-outline-secondary active" data-status="all">All ({{ sirens|length }})</button>
     <button type="button" class="btn btn-outline-success" data-status="passed">Passed ({{ status_counts.passed }})</button>
     <button type="button" class="btn btn-outline-danger" data-status="failed">Failed ({{ status_counts.failed }})</button>
+    <button type="button" class="btn btn-outline-warning" data-status="overdue">Overdue ({{ status_counts.overdue }})</button>
     <button type="button" class="btn btn-outline-info" data-status="flagged">Flagged ({{ status_counts.flagged }})</button>
-    <button type="button" class="btn btn-outline-warning" data-status="assigned">Assigned ({{ status_counts.assigned }})</button>
+    <button type="button" class="btn btn-outline-info" data-status="assigned">Assigned ({{ status_counts.assigned }})</button>
     <button type="button" class="btn btn-outline-secondary" data-status="untested">Untested ({{ status_counts.untested }})</button>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <div class="status-legend">
+      <span><span class="badge bg-passed">Passed</span> Tested this year and passed</span>
+      <span><span class="badge bg-failed">Failed</span> Tested this year and failed</span>
+      <span><span class="badge bg-overdue">Overdue</span> Last test over 12 months ago or never tested</span>
+      <span><span class="badge bg-flagged">Flagged</span> Manually marked for recheck</span>
+      <span><span class="badge bg-assigned">Assigned</span> Volunteer claimed for upcoming test</span>
+      <span><span class="badge bg-untested">Untested</span> Not yet tested this year</span>
+    </div>
   </div>
 </div>
 

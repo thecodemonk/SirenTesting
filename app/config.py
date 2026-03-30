@@ -19,6 +19,9 @@ class BaseConfig:
 
     GMAIL_SENDER = os.environ.get('GMAIL_SENDER', '')
 
+    RECAPTCHA_SITE_KEY = os.environ.get('RECAPTCHA_SITE_KEY', '')
+    RECAPTCHA_SECRET_KEY = os.environ.get('RECAPTCHA_SECRET_KEY', '')
+
     TIMEZONE = 'America/New_York'
 
 

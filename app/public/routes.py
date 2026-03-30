@@ -2,7 +2,8 @@ from datetime import date
 from collections import Counter
 from itertools import groupby
 
-from flask import render_template, request, flash, redirect, url_for
+import requests as http_requests
+from flask import render_template, request, flash, redirect, url_for, current_app
 from . import public_bp
 from .forms import SignupForm
 from ..extensions import db, limiter
@@ -34,7 +35,7 @@ def dashboard():
 
     status_counts = Counter(statuses.values())
     # Ensure all keys exist
-    for key in ('passed', 'failed', 'flagged', 'assigned', 'untested'):
+    for key in ('passed', 'failed', 'overdue', 'flagged', 'assigned', 'untested'):
         status_counts.setdefault(key, 0)
 
     return render_template('public/dashboard.html',
@@ -95,6 +96,19 @@ def signup():
         if form.website.data:
             flash('Signup received. Thank you!', 'success')
             return redirect(url_for('public.signup'))
+
+        # reCAPTCHA verification
+        recaptcha_secret = current_app.config.get('RECAPTCHA_SECRET_KEY')
+        if recaptcha_secret:
+            token = request.form.get('g-recaptcha-response', '')
+            resp = http_requests.post('https://www.google.com/recaptcha/api/siteverify', data={
+                'secret': recaptcha_secret,
+                'response': token,
+                'remoteip': request.remote_addr,
+            }, timeout=5)
+            if not resp.json().get('success'):
+                flash('Please complete the CAPTCHA.', 'danger')
+                return render_template('public/signup.html', form=form)
 
         siren_id = form.siren_id.data
         test_date_str = form.test_date.data

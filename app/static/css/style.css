@@ -2,9 +2,20 @@
 
 .badge.bg-passed { background-color: #198754 !important; }
 .badge.bg-failed { background-color: #dc3545 !important; }
+.badge.bg-overdue { background-color: #e35d10 !important; }
 .badge.bg-flagged { background-color: #0dcaf0 !important; color: #000; }
 .badge.bg-assigned { background-color: #ffc107 !important; color: #000; }
 .badge.bg-untested { background-color: #6c757d !important; }
+
+.status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+.status-legend .badge {
+  font-weight: normal;
+}
 
 #siren-table tbody tr {
   cursor: pointer;

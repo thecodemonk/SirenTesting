@@ -6,12 +6,13 @@ from .models import Test, Assignment
 
 def get_siren_status(siren, year=None):
     """Compute runtime status for a siren. Returns one of:
-    failed, assigned, flagged, passed, untested."""
+    failed, overdue, flagged, assigned, passed, untested."""
     if year is None:
         year = date.today().year
 
     year_start = date(year, 1, 1)
     year_end = date(year, 12, 31)
+    today = date.today()
 
     # Most recent test this year
     latest_test = (
@@ -25,8 +26,24 @@ def get_siren_status(siren, year=None):
     if latest_test and not latest_test.passed:
         return 'failed'
 
+    if latest_test and latest_test.passed:
+        return 'passed'
+
+    # No test this year — check if overdue (>12 months since last pass or never tested)
+    last_passing = (
+        Test.query
+        .filter_by(siren_id=siren.id, passed=True)
+        .order_by(Test.test_date.desc())
+        .first()
+    )
+    if last_passing is None or last_passing.test_date < today - timedelta(days=365):
+        return 'overdue'
+
+    # Manually flagged for recheck
+    if siren.needs_retest:
+        return 'flagged'
+
     # Check for CLAIMED assignment for upcoming test
-    today = date.today()
     has_assignment = (
         Assignment.query
         .filter_by(siren_id=siren.id, status='CLAIMED')
@@ -35,25 +52,6 @@ def get_siren_status(siren, year=None):
     )
     if has_assignment:
         return 'assigned'
-
-    # Flagged: needs_retest, never tested, or last passing test >12 months ago
-    if siren.needs_retest:
-        return 'flagged'
-
-    last_passing = (
-        Test.query
-        .filter_by(siren_id=siren.id, passed=True)
-        .order_by(Test.test_date.desc())
-        .first()
-    )
-    if last_passing is None:
-        return 'flagged'
-
-    if last_passing.test_date < today - timedelta(days=365):
-        return 'flagged'
-
-    if latest_test and latest_test.passed:
-        return 'passed'
 
     return 'untested'
 
