@@ -349,7 +349,7 @@ def export_csv(table):
     return Response(
         stream_with_context(generate()),
         mimetype='text/csv',
-        headers={'Content-Disposition': f'attachment; filename={filename}'},
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
     )
 
 
@@ -384,8 +384,8 @@ def import_csv(table):
 
     # Store in temp file for confirm step
     import_id = datetime.now().strftime('%Y%m%d%H%M%S')
-    tmp_path = os.path.join(tempfile.gettempdir(), f'sirentracker_import_{import_id}.csv')
-    with open(tmp_path, 'w', newline='') as f:
+    fd, tmp_path = tempfile.mkstemp(suffix='.csv', prefix='sirentracker_import_')
+    with os.fdopen(fd, 'w', newline='') as f:
         f.write(content)
 
     session['import_path'] = tmp_path
@@ -432,9 +432,11 @@ def import_confirm():
                     existing.location_url = row.get('location_url', existing.location_url)
                     existing.coordinates = row.get('coordinates', existing.coordinates)
                     existing.year_in_service = row.get('year_in_service', existing.year_in_service)
-                    existing.siren_type = row.get('siren_type', existing.siren_type) or 'FIXED'
+                    stype = (row.get('siren_type') or '').strip().upper()
+                    existing.siren_type = stype if stype in ('FIXED', 'ROTATE') else existing.siren_type
                     updated += 1
                 else:
+                    stype = (row.get('siren_type') or '').strip().upper()
                     siren = Siren(
                         siren_id=ext_id,
                         name=row.get('name', ext_id).strip(),
@@ -442,7 +444,7 @@ def import_confirm():
                         location_url=row.get('location_url'),
                         coordinates=row.get('coordinates'),
                         year_in_service=row.get('year_in_service'),
-                        siren_type=row.get('siren_type', 'FIXED') or 'FIXED',
+                        siren_type=stype if stype in ('FIXED', 'ROTATE') else 'FIXED',
                     )
                     db.session.add(siren)
                     added += 1
@@ -497,7 +499,9 @@ def import_confirm():
                     siren_id=siren.id,
                     volunteer_name=row.get('volunteer_name', '').strip(),
                     test_date=test_date_val,
-                    status=row.get('status', 'CLAIMED').strip().upper(),
+                    status=row.get('status', 'CLAIMED').strip().upper()
+                           if row.get('status', '').strip().upper() in ('CLAIMED', 'COMPLETED', 'RELEASED')
+                           else 'CLAIMED',
                 )
                 db.session.add(assignment)
                 added += 1

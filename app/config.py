@@ -7,7 +7,9 @@ BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 
 class BaseConfig:
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'change-me-in-production')
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    if not SECRET_KEY:
+        raise RuntimeError('SECRET_KEY environment variable is required')
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         'DATABASE_URL', f'sqlite:///{os.path.join(BASE_DIR, "instance", "sirentracker.db")}'
     )
@@ -25,6 +27,9 @@ class BaseConfig:
     MEDIA_FOLDER = os.path.join(BASE_DIR, 'media', 'photos')
     MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB
 
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+
     TIMEZONE = 'America/New_York'
 
 
@@ -35,11 +40,10 @@ class DevConfig(BaseConfig):
 class ProdConfig(BaseConfig):
     DEBUG = False
     SESSION_COOKIE_SECURE = True
-    SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SAMESITE = 'Lax'
 
 
 class TestConfig(BaseConfig):
+    SECRET_KEY = 'testing-only'
     TESTING = True
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
     WTF_CSRF_ENABLED = False

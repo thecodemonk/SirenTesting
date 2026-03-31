@@ -1,7 +1,7 @@
-from flask import redirect, url_for, flash, session, current_app
+from flask import redirect, url_for, flash, session, current_app, request
 from flask_login import login_user, logout_user
 from . import auth_bp
-from ..extensions import oauth, db
+from ..extensions import oauth, db, limiter
 from ..models import AdminUser
 
 google = None
@@ -19,6 +19,7 @@ def _get_google():
 
 
 @auth_bp.route('/login')
+@limiter.limit("10/minute")
 def login():
     google = _get_google()
     redirect_uri = url_for('auth.callback', _external=True)
@@ -61,7 +62,7 @@ def callback():
     return redirect(url_for('admin.sirens'))
 
 
-@auth_bp.route('/logout')
+@auth_bp.route('/logout', methods=['POST'])
 def logout():
     logout_user()
     session.clear()

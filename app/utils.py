@@ -3,68 +3,94 @@ from datetime import date, timedelta
 
 from flask import current_app
 from PIL import Image
+from sqlalchemy import func
 from .extensions import db
 from .models import Test, Assignment
 
 MAX_PHOTO_SIZE = (1200, 1200)
 THUMB_SIZE = (200, 200)
+Image.MAX_IMAGE_PIXELS = 25_000_000  # Guard against decompression bombs
 
 
-def get_siren_status(siren, year=None):
-    """Compute runtime status for a siren. Returns one of:
-    failed, overdue, flagged, assigned, passed, untested."""
+def get_all_siren_statuses(sirens, year=None):
+    """Compute statuses and last test dates for all sirens in batch.
+    Returns (statuses_dict, last_tests_dict) using only 4 queries total."""
     if year is None:
         year = date.today().year
 
     year_start = date(year, 1, 1)
     year_end = date(year, 12, 31)
     today = date.today()
+    overdue_cutoff = today - timedelta(days=365)
 
-    # Most recent test this year
-    latest_test = (
-        Test.query
-        .filter_by(siren_id=siren.id)
+    siren_ids = [s.id for s in sirens]
+    siren_map = {s.id: s for s in sirens}
+
+    # Query 1: Latest test per siren this year (with pass/fail)
+    latest_this_year_sub = (
+        db.session.query(
+            Test.siren_id,
+            func.max(Test.test_date).label('max_date'),
+        )
+        .filter(Test.siren_id.in_(siren_ids))
         .filter(Test.test_date.between(year_start, year_end))
-        .order_by(Test.test_date.desc())
-        .first()
+        .group_by(Test.siren_id)
+        .subquery()
     )
-
-    if latest_test and not latest_test.passed:
-        return 'failed'
-
-    if latest_test and latest_test.passed:
-        return 'passed'
-
-    # No test this year — check if overdue (no test at all in over 12 months)
-    last_test_ever = (
-        Test.query
-        .filter_by(siren_id=siren.id)
-        .order_by(Test.test_date.desc())
-        .first()
+    latest_this_year = (
+        db.session.query(Test.siren_id, Test.passed)
+        .join(latest_this_year_sub, db.and_(
+            Test.siren_id == latest_this_year_sub.c.siren_id,
+            Test.test_date == latest_this_year_sub.c.max_date,
+        ))
+        .all()
     )
-    if last_test_ever is None or last_test_ever.test_date < today - timedelta(days=365):
-        return 'overdue'
+    year_results = {row.siren_id: row.passed for row in latest_this_year}
 
-    # Manually flagged for recheck
-    if siren.needs_retest:
-        return 'flagged'
+    # Query 2: Latest test date per siren (any year)
+    latest_ever = (
+        db.session.query(
+            Test.siren_id,
+            func.max(Test.test_date).label('max_date'),
+        )
+        .filter(Test.siren_id.in_(siren_ids))
+        .group_by(Test.siren_id)
+        .all()
+    )
+    last_test_dates = {row.siren_id: row.max_date for row in latest_ever}
 
-    # Check for CLAIMED assignment for upcoming test
-    has_assignment = (
-        Assignment.query
-        .filter_by(siren_id=siren.id, status='CLAIMED')
+    # Query 3: Sirens with claimed assignments for upcoming tests
+    assigned_siren_ids = set(
+        row[0] for row in
+        db.session.query(Assignment.siren_id)
+        .filter(Assignment.siren_id.in_(siren_ids))
+        .filter(Assignment.status == 'CLAIMED')
         .filter(Assignment.test_date >= today)
-        .first()
+        .distinct()
+        .all()
     )
-    if has_assignment:
-        return 'assigned'
 
-    return 'untested'
+    # Compute statuses
+    statuses = {}
+    for sid in siren_ids:
+        if sid in year_results:
+            statuses[sid] = 'passed' if year_results[sid] else 'failed'
+        elif sid not in last_test_dates or last_test_dates[sid] < overdue_cutoff:
+            statuses[sid] = 'overdue'
+        elif siren_map[sid].needs_retest:
+            statuses[sid] = 'flagged'
+        elif sid in assigned_siren_ids:
+            statuses[sid] = 'assigned'
+        else:
+            statuses[sid] = 'untested'
+
+    return statuses, last_test_dates
 
 
-def get_all_siren_statuses(sirens, year=None):
-    """Compute statuses for a list of sirens. Returns dict of siren.id -> status."""
-    return {siren.id: get_siren_status(siren, year) for siren in sirens}
+def get_siren_status(siren, year=None):
+    """Compute status for a single siren (used on detail page)."""
+    statuses, _ = get_all_siren_statuses([siren], year)
+    return statuses.get(siren.id, 'untested')
 
 
 def notify_admins(subject, body):
@@ -88,6 +114,8 @@ def save_test_photo(file_storage, test_id):
     thumb_filename = f'test_{test_id}_thumb.jpg'
 
     img = Image.open(file_storage)
+    if img.format not in ('JPEG', 'PNG', 'GIF', 'WEBP', 'MPO'):
+        raise ValueError(f'Unsupported image format: {img.format}')
     # Auto-rotate based on EXIF orientation
     img = _fix_orientation(img)
     # Convert to RGB (handles PNG with alpha, etc.)

@@ -1,6 +1,7 @@
 import os
+import re
 
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, abort
 from .extensions import db, login_manager, csrf, limiter, migrate, oauth
 from .filters import register_filters
 
@@ -36,6 +37,8 @@ def create_app(config_name=None):
 
     @app.route('/media/photos/<filename>')
     def media_photo(filename):
+        if not re.match(r'^test_\d+(_thumb)?\.jpg$', filename):
+            abort(404)
         return send_from_directory(app.config['MEDIA_FOLDER'], filename)
 
     return app

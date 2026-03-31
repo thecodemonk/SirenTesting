@@ -8,7 +8,7 @@ from . import public_bp
 from .forms import SignupForm
 from ..extensions import db, limiter
 from ..models import Siren, Test, Assignment, TestSchedule
-from ..utils import get_siren_status, get_all_siren_statuses, notify_admins
+from ..utils import get_all_siren_statuses, get_siren_status, notify_admins
 
 
 @public_bp.route('/')
@@ -17,21 +17,10 @@ def dashboard():
     # Build year list from earliest test to current year
     years = list(range(current_year, current_year - 10, -1))
     selected_year = request.args.get('year', current_year, type=int)
+    selected_year = max(current_year - 10, min(selected_year, current_year + 1))
 
     sirens = Siren.query.filter_by(active=True).order_by(Siren.siren_id).all()
-    statuses = get_all_siren_statuses(sirens, selected_year)
-
-    # Last test date per siren
-    last_tests = {}
-    for siren in sirens:
-        latest = (
-            Test.query
-            .filter_by(siren_id=siren.id)
-            .order_by(Test.test_date.desc())
-            .first()
-        )
-        if latest:
-            last_tests[siren.id] = latest.test_date
+    statuses, last_tests = get_all_siren_statuses(sirens, selected_year)
 
     status_counts = Counter(statuses.values())
     # Ensure all keys exist
