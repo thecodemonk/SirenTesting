@@ -11,6 +11,7 @@ class Siren(db.Model):
     name = db.Column(db.Text, nullable=False)
     location_text = db.Column(db.Text)
     location_url = db.Column(db.Text)
+    coordinates = db.Column(db.Text)  # lat,lng e.g. "42.9634,-82.4368"
     year_in_service = db.Column(db.Text)
     siren_type = db.Column(db.Text, default='FIXED')  # FIXED or ROTATE
     active = db.Column(db.Boolean, default=True)

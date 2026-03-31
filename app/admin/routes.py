@@ -303,7 +303,7 @@ def schedule_delete(id):
 @admin_required
 def export_csv(table):
     if table == 'sirens':
-        columns = ['siren_id', 'name', 'location_text', 'location_url',
+        columns = ['siren_id', 'name', 'location_text', 'location_url', 'coordinates',
                     'year_in_service', 'siren_type', 'active', 'needs_retest']
         rows = Siren.query.order_by(Siren.siren_id).all()
     elif table == 'tests':
@@ -430,6 +430,7 @@ def import_confirm():
                     existing.name = row.get('name', existing.name).strip()
                     existing.location_text = row.get('location_text', existing.location_text)
                     existing.location_url = row.get('location_url', existing.location_url)
+                    existing.coordinates = row.get('coordinates', existing.coordinates)
                     existing.year_in_service = row.get('year_in_service', existing.year_in_service)
                     existing.siren_type = row.get('siren_type', existing.siren_type) or 'FIXED'
                     updated += 1
@@ -439,6 +440,7 @@ def import_confirm():
                         name=row.get('name', ext_id).strip(),
                         location_text=row.get('location_text'),
                         location_url=row.get('location_url'),
+                        coordinates=row.get('coordinates'),
                         year_in_service=row.get('year_in_service'),
                         siren_type=row.get('siren_type', 'FIXED') or 'FIXED',
                     )

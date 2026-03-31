@@ -35,6 +35,12 @@
     {{ form.location_url(class="form-control", placeholder="https://maps.google.com/...") }}
   </div>
 
+  <div class="mb-3">
+    {{ form.coordinates.label(class="form-label") }}
+    {{ form.coordinates(class="form-control", placeholder="42.9634,-82.4368") }}
+    <div class="form-text">Optional. Lat,Lng for precise map pin. Used when address alone isn't accurate enough.</div>
+  </div>
+
   <div class="row">
     <div class="col-md-4 mb-3">
       {{ form.year_in_service.label(class="form-label") }}

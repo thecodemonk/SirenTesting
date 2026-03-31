@@ -11,6 +11,7 @@ class SirenForm(FlaskForm):
     name = StringField('Name', validators=[DataRequired(), Length(max=200)])
     location_text = StringField('Location', validators=[Optional(), Length(max=500)])
     location_url = StringField('Map Link', validators=[Optional(), Length(max=1000)])
+    coordinates = StringField('GPS Coordinates', validators=[Optional(), Length(max=50)])
     year_in_service = StringField('Year in Service', validators=[Optional(), Length(max=20)])
     siren_type = SelectField('Type', choices=[('FIXED', 'Fixed'), ('ROTATE', 'Rotate')])
     active = BooleanField('Active', default=True)
