@@ -33,3 +33,9 @@ class TestForm(FlaskForm):
     photo = FileField('Test Photo', validators=[
         FileAllowed(['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'], 'Images only')
     ])
+
+
+class AssignmentForm(FlaskForm):
+    siren_id = SelectField('Siren', coerce=int, validators=[DataRequired()])
+    volunteer_name = StringField('Volunteer Name / Callsign', validators=[DataRequired(), Length(max=100)])
+    test_date = SelectField('Test Date', validators=[DataRequired()])

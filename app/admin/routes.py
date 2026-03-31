@@ -1,6 +1,7 @@
 import csv
 import io
 import os
+import re
 import tempfile
 from datetime import date, datetime
 
@@ -9,7 +10,7 @@ from flask import (
     Response, stream_with_context, session,
 )
 from .decorators import admin_required
-from .forms import SirenForm, TestForm
+from .forms import SirenForm, TestForm, AssignmentForm
 from . import admin_bp
 from ..extensions import db
 from ..models import Siren, Test, Assignment, TestSchedule, AdminUser
@@ -226,6 +227,54 @@ def assignment_action(id):
         flash('Assignment released.', 'info')
     db.session.commit()
     return redirect(url_for('admin.assignments'))
+
+
+@admin_bp.route('/assignments/add', methods=['GET', 'POST'])
+@admin_required
+def assignment_add():
+    form = AssignmentForm()
+    sirens = Siren.query.filter_by(active=True).order_by(Siren.siren_id).all()
+    form.siren_id.choices = [
+        (s.id, f'{s.siren_id} — {s.name}')
+        for s in sirens
+    ]
+
+    today = date.today()
+    upcoming = (
+        TestSchedule.query
+        .filter(TestSchedule.test_date >= today)
+        .order_by(TestSchedule.test_date)
+        .all()
+    )
+    form.test_date.choices = [
+        (s.test_date.isoformat(), f'{s.test_date.strftime("%b %d, %Y")} — {s.description}')
+        for s in upcoming
+    ]
+
+    if form.validate_on_submit():
+        test_date_val = date.fromisoformat(form.test_date.data)
+
+        existing = Assignment.query.filter_by(
+            siren_id=form.siren_id.data,
+            test_date=test_date_val,
+            status='CLAIMED',
+        ).first()
+        if existing:
+            flash('This siren is already claimed for that test date.', 'warning')
+            return render_template('admin/assignment_form.html', form=form)
+
+        assignment = Assignment(
+            siren_id=form.siren_id.data,
+            volunteer_name=form.volunteer_name.data.strip(),
+            test_date=test_date_val,
+            status='CLAIMED',
+        )
+        db.session.add(assignment)
+        db.session.commit()
+        flash(f'Assignment created for {assignment.volunteer_name}.', 'success')
+        return redirect(url_for('admin.assignments'))
+
+    return render_template('admin/assignment_form.html', form=form)
 
 
 @admin_bp.route('/assignments/<int:id>/delete', methods=['POST'])
@@ -518,9 +567,12 @@ def import_confirm():
                 if existing:
                     skipped += 1
                     continue
+                test_time = row.get('test_time', '13:00').strip()
+                if not re.match(r'^\d{1,2}:\d{2}$', test_time):
+                    test_time = '13:00'
                 schedule = TestSchedule(
                     test_date=test_date_val,
-                    test_time=row.get('test_time', '13:00').strip(),
+                    test_time=test_time,
                     description=row.get('description', 'Monthly Test').strip(),
                 )
                 db.session.add(schedule)

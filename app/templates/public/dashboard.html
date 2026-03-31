@@ -62,7 +62,7 @@
       <tr class="{{ statuses[siren.id] | status_class }}" data-status="{{ statuses[siren.id] }}">
         <td><a href="{{ url_for('public.siren_detail', siren_id=siren.siren_id) }}">{{ siren.siren_id }}</a></td>
         <td>{{ siren.name }}</td>
-        <td>{% if siren.location_url %}<a href="{{ siren.location_url }}" target="_blank" rel="noopener">{{ siren.location_text or 'Map' }}</a>{% else %}{{ siren.location_text or '' }}{% endif %}</td>
+        <td>{% if siren.location_url %}<a href="{{ siren.location_url }}" target="_blank" rel="noopener noreferrer">{{ siren.location_text or 'Map' }}</a>{% else %}{{ siren.location_text or '' }}{% endif %}</td>
         <td>{{ siren.siren_type }}</td>
         <td><span class="badge bg-{{ statuses[siren.id] | status_badge }}">{{ statuses[siren.id] | capitalize }}</span></td>
         <td>{{ last_tests.get(siren.id, '') | format_date }}</td>

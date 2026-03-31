@@ -20,9 +20,9 @@ class Siren(db.Model):
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            onupdate=lambda: datetime.now(timezone.utc))
 
-    tests = db.relationship('Test', backref='siren', lazy='dynamic',
+    tests = db.relationship('Test', backref='siren', lazy='select',
                             order_by='Test.test_date.desc()')
-    assignments = db.relationship('Assignment', backref='siren', lazy='dynamic')
+    assignments = db.relationship('Assignment', backref='siren', lazy='select')
 
     def __repr__(self):
         return f'<Siren {self.siren_id}: {self.name}>'

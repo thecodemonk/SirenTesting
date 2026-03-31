@@ -1,0 +1,38 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Add Assignment — SirenTracker{% endblock %}
+
+{% block admin_content %}
+<h2>Add Assignment</h2>
+
+<form method="post">
+  {{ form.hidden_tag() }}
+
+  <div class="mb-3">
+    {{ form.siren_id.label(class="form-label") }}
+    {{ form.siren_id(class="form-select") }}
+    {% for error in form.siren_id.errors %}
+    <div class="invalid-feedback d-block">{{ error }}</div>
+    {% endfor %}
+  </div>
+
+  <div class="mb-3">
+    {{ form.volunteer_name.label(class="form-label") }}
+    {{ form.volunteer_name(class="form-control", placeholder="Name or callsign") }}
+    {% for error in form.volunteer_name.errors %}
+    <div class="invalid-feedback d-block">{{ error }}</div>
+    {% endfor %}
+  </div>
+
+  <div class="mb-3">
+    {{ form.test_date.label(class="form-label") }}
+    {{ form.test_date(class="form-select") }}
+    {% for error in form.test_date.errors %}
+    <div class="invalid-feedback d-block">{{ error }}</div>
+    {% endfor %}
+  </div>
+
+  <button type="submit" class="btn btn-primary">Create Assignment</button>
+  <a href="{{ url_for('admin.assignments') }}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}
