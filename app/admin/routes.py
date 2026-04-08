@@ -129,18 +129,18 @@ def test_add():
         if test.passed and siren.needs_retest:
             siren.needs_retest = False
 
-        # Auto-complete the linked assignment, or find a matching one
-        linked = db.session.get(Assignment, assignment_id) if assignment_id else None
-        if linked and linked.status == 'CLAIMED':
-            linked.status = 'COMPLETED'
-        else:
-            matching = Assignment.query.filter_by(
+        # Auto-complete the linked assignment, or find a matching one by
+        # siren+date so the helper below can use its member_id FK directly
+        # instead of re-matching the observer string.
+        linked_assignment = db.session.get(Assignment, assignment_id) if assignment_id else None
+        if not linked_assignment:
+            linked_assignment = Assignment.query.filter_by(
                 siren_id=siren.id,
                 test_date=test.test_date,
                 status='CLAIMED',
             ).first()
-            if matching:
-                matching.status = 'COMPLETED'
+        if linked_assignment and linked_assignment.status == 'CLAIMED':
+            linked_assignment.status = 'COMPLETED'
 
         db.session.commit()
 
@@ -150,7 +150,7 @@ def test_add():
             db.session.commit()
 
         # Auto-create event for siren test
-        _create_siren_test_event(test, siren)
+        _create_siren_test_event(test, siren, assignment=linked_assignment)
 
         flash('Test result recorded.', 'success')
         if assignment_id:
@@ -161,7 +161,7 @@ def test_add():
                            editing=False)
 
 
-def _create_siren_test_event(test, siren):
+def _create_siren_test_event(test, siren, assignment=None):
     """Add the test's observer as an attendee on the Siren Test event for
     test.test_date, creating that event if no one has logged a test for
     that date yet.
@@ -170,9 +170,14 @@ def _create_siren_test_event(test, siren):
     multiple volunteers each test a different siren. Net control then
     enters all the results afterward. We want exactly one Event per test
     date with all the volunteers as attendees — not one event per test
-    result. The previous version of this helper created a fresh Event on
-    every call, which produced N duplicate events for any test day with
-    N siren results."""
+    result.
+
+    Observer-to-member resolution prefers the linked Assignment's
+    member_id FK when available (set when a logged-in member self-served
+    via the public signup form), and falls back to fuzzy string matching
+    on callsign then name otherwise. If everything misses we flash a
+    warning so the admin notices and can manually fix it — much better
+    than silently dropping attendance credit for the volunteer."""
     event = Event.query.filter_by(
         date=test.test_date,
         event_type='Siren Test',
@@ -192,11 +197,19 @@ def _create_siren_test_event(test, siren):
         db.session.add(event)
         db.session.flush()  # Get event.id
 
-    # Try to match observer to a member by callsign first, then by name
-    observer_member = Member.query.filter(
-        db.func.lower(Member.callsign) == test.observer.strip().lower()
-    ).first()
-    if not observer_member:
+    # Resolve the observer to a Member.
+    observer_member = None
+    # 1. Cleanest path: the assignment was claimed by a logged-in member,
+    #    so we already have a real FK. No string matching needed.
+    if assignment and assignment.member_id:
+        observer_member = db.session.get(Member, assignment.member_id)
+    # 2. Fallback: case-insensitive exact match against callsign...
+    if observer_member is None and test.observer:
+        observer_member = Member.query.filter(
+            db.func.lower(Member.callsign) == test.observer.strip().lower()
+        ).first()
+    # 3. ...then against name.
+    if observer_member is None and test.observer:
         observer_member = Member.query.filter(
             db.func.lower(Member.name) == test.observer.strip().lower()
         ).first()
@@ -215,6 +228,15 @@ def _create_siren_test_event(test, siren):
             ))
         if not observer_member.last_active_date or observer_member.last_active_date < test.test_date:
             observer_member.last_active_date = test.test_date
+    else:
+        # Don't lose the work silently — surface a flash so the admin can
+        # manually add the volunteer to the event's attendance.
+        flash(
+            f'Test recorded, but no member matched observer "{test.observer}". '
+            f'No attendance credit was created — open the event for '
+            f'{test.test_date.strftime("%b %d, %Y")} and add them manually.',
+            'warning'
+        )
 
     db.session.commit()
     return event
