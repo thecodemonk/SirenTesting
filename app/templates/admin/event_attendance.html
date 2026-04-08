@@ -9,20 +9,45 @@
   <br>Default duration: {{ event.duration_hours }} hours
 </p>
 
-<div class="alert alert-light border d-flex justify-content-between align-items-center py-2 mb-3">
-  <div class="small">
-    {% if show_all %}
-      Showing <strong>all active members</strong>.
-    {% else %}
-      Showing members active in <strong>{{ event.category }}</strong>
-      {% if current_attendance %}plus anyone already attending this event{% endif %}.
-    {% endif %}
+<form method="get" class="alert alert-light border py-2 mb-3">
+  <input type="hidden" name="filtered" value="1">
+  <div class="d-flex flex-wrap align-items-center gap-3">
+    <span class="small text-muted">Show members active in:</span>
+    <div class="form-check form-check-inline mb-0">
+      <input type="checkbox" class="form-check-input js-program-filter" id="filter-siren"
+             name="programs" value="siren_testing"
+             {% if 'siren_testing' in selected_programs %}checked{% endif %}>
+      <label class="form-check-label" for="filter-siren">Siren Testing</label>
+    </div>
+    <div class="form-check form-check-inline mb-0">
+      <input type="checkbox" class="form-check-input js-program-filter" id="filter-skywarn"
+             name="programs" value="skywarn"
+             {% if 'skywarn' in selected_programs %}checked{% endif %}>
+      <label class="form-check-label" for="filter-skywarn">SKYWARN</label>
+    </div>
+    <div class="form-check form-check-inline mb-0">
+      <input type="checkbox" class="form-check-input js-program-filter" id="filter-arpsc"
+             name="programs" value="arpsc"
+             {% if 'arpsc' in selected_programs %}checked{% endif %}>
+      <label class="form-check-label" for="filter-arpsc">ARPSC</label>
+    </div>
+    <div class="form-check form-check-inline mb-0">
+      <input type="checkbox" class="form-check-input js-program-filter-all" id="filter-all"
+             name="programs" value="all"
+             {% if 'all' in selected_programs %}checked{% endif %}>
+      <label class="form-check-label" for="filter-all">All Active</label>
+    </div>
+    <button type="submit" class="btn btn-sm btn-outline-secondary ms-auto">Apply Filter</button>
   </div>
-  <a href="{{ url_for('admin.event_attendance', id=event.id, all='0' if show_all else '1') }}"
-     class="btn btn-sm btn-outline-secondary">
-    {{ 'Show ' + event.category + ' only' if show_all else 'Show all members' }}
-  </a>
-</div>
+  <div class="small text-muted mt-2">
+    {% if show_all %}
+      Showing <strong>all active members</strong>
+    {% else %}
+      Showing members active in <strong>{{ filter_label }}</strong>{% if current_attendance %}, plus anyone already attending this event{% endif %}
+    {% endif %}
+    — {{ members|length }} member{{ 's' if members|length != 1 }}.
+  </div>
+</form>
 
 <form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
