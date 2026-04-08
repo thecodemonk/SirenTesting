@@ -9,45 +9,35 @@
   <br>Default duration: {{ event.duration_hours }} hours
 </p>
 
-<form method="get" class="alert alert-light border py-2 mb-3">
-  <input type="hidden" name="filtered" value="1">
-  <div class="d-flex flex-wrap align-items-center gap-3">
-    <span class="small text-muted">Show members active in:</span>
-    <div class="form-check form-check-inline mb-0">
-      <input type="checkbox" class="form-check-input js-program-filter" id="filter-siren"
-             name="programs" value="siren_testing"
-             {% if 'siren_testing' in selected_programs %}checked{% endif %}>
-      <label class="form-check-label" for="filter-siren">Siren Testing</label>
-    </div>
-    <div class="form-check form-check-inline mb-0">
-      <input type="checkbox" class="form-check-input js-program-filter" id="filter-skywarn"
-             name="programs" value="skywarn"
-             {% if 'skywarn' in selected_programs %}checked{% endif %}>
-      <label class="form-check-label" for="filter-skywarn">SKYWARN</label>
-    </div>
-    <div class="form-check form-check-inline mb-0">
-      <input type="checkbox" class="form-check-input js-program-filter" id="filter-arpsc"
-             name="programs" value="arpsc"
-             {% if 'arpsc' in selected_programs %}checked{% endif %}>
-      <label class="form-check-label" for="filter-arpsc">ARPSC</label>
-    </div>
-    <div class="form-check form-check-inline mb-0">
-      <input type="checkbox" class="form-check-input js-program-filter-all" id="filter-all"
-             name="programs" value="all"
-             {% if 'all' in selected_programs %}checked{% endif %}>
-      <label class="form-check-label" for="filter-all">All Active</label>
-    </div>
-    <button type="submit" class="btn btn-sm btn-outline-secondary ms-auto">Apply Filter</button>
+<div class="alert alert-light border py-2 mb-3">
+  <div class="d-flex flex-wrap align-items-center gap-2">
+    <span class="small text-muted me-1">Filter:</span>
+
+    <input type="checkbox" class="btn-check js-attendance-filter" id="filter-siren"
+           data-program="siren" autocomplete="off"
+           {% if 'siren_testing' in default_programs %}checked{% endif %}>
+    <label class="btn btn-sm btn-outline-success rounded-pill" for="filter-siren">Siren Testing</label>
+
+    <input type="checkbox" class="btn-check js-attendance-filter" id="filter-skywarn"
+           data-program="skywarn" autocomplete="off"
+           {% if 'skywarn' in default_programs %}checked{% endif %}>
+    <label class="btn btn-sm btn-outline-info rounded-pill" for="filter-skywarn">SKYWARN</label>
+
+    <input type="checkbox" class="btn-check js-attendance-filter" id="filter-arpsc"
+           data-program="arpsc" autocomplete="off"
+           {% if 'arpsc' in default_programs %}checked{% endif %}>
+    <label class="btn btn-sm btn-outline-primary rounded-pill" for="filter-arpsc">ARPSC</label>
+
+    <input type="checkbox" class="btn-check js-attendance-filter-all" id="filter-all"
+           autocomplete="off"
+           {% if 'all' in default_programs %}checked{% endif %}>
+    <label class="btn btn-sm btn-outline-secondary rounded-pill" for="filter-all">All Active</label>
+
+    <span class="small text-muted ms-auto">
+      Showing <span id="js-visible-count">{{ members|length }}</span> of {{ members|length }} active members
+    </span>
   </div>
-  <div class="small text-muted mt-2">
-    {% if show_all %}
-      Showing <strong>all active members</strong>
-    {% else %}
-      Showing members active in <strong>{{ filter_label }}</strong>{% if current_attendance %}, plus anyone already attending this event{% endif %}
-    {% endif %}
-    — {{ members|length }} member{{ 's' if members|length != 1 }}.
-  </div>
-</form>
+</div>
 
 <form method="post">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -67,7 +57,11 @@
       <tbody>
         {% for m in members %}
         {% set att = current_attendance.get(m.id) %}
-        <tr>
+        <tr class="js-attendee-row"
+            data-siren="{{ '1' if m.siren_testing_active else '0' }}"
+            data-skywarn="{{ '1' if m.skywarn_active else '0' }}"
+            data-arpsc="{{ '1' if m.arpsc_active else '0' }}"
+            data-attending="{{ '1' if att else '0' }}">
           <td>
             <input type="checkbox" name="member_{{ m.id }}" class="form-check-input member-check"
                    {% if att %}checked{% endif %}>
@@ -91,8 +85,74 @@
 </form>
 
 <script>
-document.getElementById('select-all').addEventListener('change', function() {
-  document.querySelectorAll('.member-check').forEach(cb => cb.checked = this.checked);
-});
+(function () {
+  // Select-all checkbox in the table header — toggles every visible row.
+  // We only operate on visible rows so a "select all" while filtered to
+  // SKYWARN doesn't accidentally tick members from other programs.
+  var selectAll = document.getElementById('select-all');
+  if (selectAll) {
+    selectAll.addEventListener('change', function () {
+      document.querySelectorAll('.js-attendee-row').forEach(function (row) {
+        if (row.style.display === 'none') return;
+        var cb = row.querySelector('.member-check');
+        if (cb) cb.checked = selectAll.checked;
+      });
+    });
+  }
+
+  // Pill-style program filter. Filtering is purely client-side so toggling
+  // a pill never reloads the page — that means in-progress attendance ticks
+  // are preserved as the admin narrows down the picker. Members already
+  // attending the event are always visible regardless of filter so they
+  // can't be silently dropped on save.
+  var programPills = document.querySelectorAll('.js-attendance-filter');
+  var allPill = document.querySelector('.js-attendance-filter-all');
+  var rows = document.querySelectorAll('.js-attendee-row');
+  var visibleCount = document.getElementById('js-visible-count');
+
+  function applyFilter() {
+    var allChecked = allPill && allPill.checked;
+    var selected = [];
+    programPills.forEach(function (cb) {
+      if (cb.checked) selected.push(cb.dataset.program);
+    });
+
+    var visible = 0;
+    rows.forEach(function (row) {
+      var show;
+      if (allChecked || selected.length === 0) {
+        show = true;
+      } else if (row.dataset.attending === '1') {
+        // Always keep current attendees visible regardless of filter
+        show = true;
+      } else {
+        show = selected.some(function (p) { return row.dataset[p] === '1'; });
+      }
+      row.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+    if (visibleCount) visibleCount.textContent = visible;
+  }
+
+  programPills.forEach(function (cb) {
+    cb.addEventListener('change', function () {
+      // Picking a specific program clears "All Active"
+      if (this.checked && allPill) allPill.checked = false;
+      applyFilter();
+    });
+  });
+  if (allPill) {
+    allPill.addEventListener('change', function () {
+      // Picking "All Active" clears the program pills
+      if (this.checked) {
+        programPills.forEach(function (cb) { cb.checked = false; });
+      }
+      applyFilter();
+    });
+  }
+
+  // Apply once on load so the category default takes effect
+  applyFilter();
+})();
 </script>
 {% endblock %}

@@ -711,44 +711,17 @@ def event_delete(id):
 def event_attendance(id):
     event = db.session.get(Event, id) or abort(404)
 
-    # Multi-select program filter. The admin can combine Siren Test, SKYWARN,
-    # and ARPSC chips, or pick "All Active" to ignore program flags entirely.
-    # On first visit (no `filtered=1` in the URL) we preselect based on the
-    # event's category. Once the admin submits the filter form we trust the
-    # explicit selection — including the empty case, which we treat as
-    # "All Active" so an empty filter never produces an empty picker.
-    base_query = Member.query.filter_by(active=True)
-
-    if request.args.get('filtered'):
-        selected_programs = set(request.args.getlist('programs'))
-    else:
-        category_defaults = {
-            'SKYWARN': {'skywarn'},
-            'ARPSC': {'arpsc'},
-            'Siren Test': {'siren_testing'},
-        }
-        selected_programs = category_defaults.get(event.category, {'all'})
-
-    show_all = (not selected_programs) or ('all' in selected_programs)
-    if show_all:
-        program_query = base_query
-    else:
-        conditions = []
-        if 'arpsc' in selected_programs:
-            conditions.append(Member.arpsc_active == True)
-        if 'skywarn' in selected_programs:
-            conditions.append(Member.skywarn_active == True)
-        if 'siren_testing' in selected_programs:
-            conditions.append(Member.siren_testing_active == True)
-        program_query = base_query.filter(db.or_(*conditions)) if conditions else base_query
-
-    # On POST we always operate over every active member so the filtered view
-    # can't accidentally drop attendees from outside the current selection.
-    post_members = base_query.order_by(Member.name).all()
+    # Filtering is done client-side so toggling a pill doesn't reload the
+    # page (which would discard any in-progress attendance ticks). The route
+    # just hands the template every active member tagged with their program
+    # flags via data attributes; the JS in the template hides/shows rows
+    # based on which pills are toggled. We still preselect pills based on
+    # the event's category for the common case.
+    members = Member.query.filter_by(active=True).order_by(Member.name).all()
 
     if request.method == 'POST':
         EventAttendance.query.filter_by(event_id=event.id).delete()
-        for member in post_members:
+        for member in members:
             checkbox_key = f'member_{member.id}'
             hours_key = f'hours_{member.id}'
             if checkbox_key in request.form:
@@ -765,43 +738,18 @@ def event_attendance(id):
         flash('Attendance updated.', 'success')
         return redirect(url_for('admin.event_attendance', id=event.id))
 
-    # GET picker. Always include members already attending this event even
-    # if they're outside the filter — otherwise the admin would see them
-    # disappear and unintentionally drop them on save.
     current_attendance = {a.member_id: a for a in event.attendance}
-    if show_all:
-        members = post_members
-    else:
-        members = program_query.order_by(Member.name).all()
-        member_ids = {m.id for m in members}
-        for m in post_members:
-            if m.id in current_attendance and m.id not in member_ids:
-                members.append(m)
-        members.sort(key=lambda m: m.name)
 
-    # Pretty label for the "Showing ..." line in the filter banner.
-    program_labels = {
-        'siren_testing': 'Siren Testing',
-        'skywarn': 'SKYWARN',
-        'arpsc': 'ARPSC',
+    category_defaults = {
+        'SKYWARN': {'skywarn'},
+        'ARPSC': {'arpsc'},
+        'Siren Test': {'siren_testing'},
     }
-    selected_label_parts = [
-        program_labels[p] for p in ('siren_testing', 'skywarn', 'arpsc')
-        if p in selected_programs
-    ]
-    if len(selected_label_parts) == 1:
-        filter_label = selected_label_parts[0]
-    elif len(selected_label_parts) == 2:
-        filter_label = ' or '.join(selected_label_parts)
-    elif len(selected_label_parts) > 2:
-        filter_label = ', '.join(selected_label_parts[:-1]) + ', or ' + selected_label_parts[-1]
-    else:
-        filter_label = ''
+    default_programs = category_defaults.get(event.category, {'all'})
 
     return render_template('admin/event_attendance.html', event=event,
                            members=members, current_attendance=current_attendance,
-                           selected_programs=selected_programs, show_all=show_all,
-                           filter_label=filter_label)
+                           default_programs=default_programs)
 
 
 # =====================================================

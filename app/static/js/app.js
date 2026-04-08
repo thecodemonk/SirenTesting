@@ -80,26 +80,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // Event attendance program filter: "All Active" and the per-program
-  // checkboxes are mutually exclusive in the UI even though the server
-  // accepts any combination. Checking "All Active" clears the others;
-  // checking a program clears "All Active". This is purely cosmetic — it
-  // just keeps the form from looking ambiguous when both are ticked.
-  var allFilter = document.querySelector('.js-program-filter-all');
-  var programFilters = document.querySelectorAll('.js-program-filter');
-  if (allFilter && programFilters.length) {
-    allFilter.addEventListener('change', function () {
-      if (this.checked) {
-        programFilters.forEach(function (cb) { cb.checked = false; });
-      }
-    });
-    programFilters.forEach(function (cb) {
-      cb.addEventListener('change', function () {
-        if (this.checked) allFilter.checked = false;
-      });
-    });
-  }
-
   // Generic clickable rows with keyboard support. Use class js-clickable-row
   // and a data-href attribute. Rows must also be tabindex=0 role=link so
   // screen readers and keyboard users can reach and activate them.
