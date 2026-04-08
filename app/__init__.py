@@ -1,7 +1,7 @@
 import os
 import re
 
-from flask import Flask, send_from_directory, abort
+from flask import Flask, send_from_directory, abort, render_template
 from werkzeug.middleware.proxy_fix import ProxyFix
 from .extensions import db, login_manager, csrf, limiter, migrate, oauth
 from .filters import register_filters
@@ -45,5 +45,21 @@ def create_app(config_name=None):
         if not re.match(r'^test_\d+(_thumb)?\.jpg$', filename):
             abort(404)
         return send_from_directory(app.config['MEDIA_FOLDER'], filename)
+
+    @app.errorhandler(404)
+    def not_found(error):
+        return render_template('errors/404.html'), 404
+
+    @app.errorhandler(500)
+    def server_error(error):
+        # Roll back any in-progress DB transaction so the next request gets a
+        # clean session — without this, a 500 mid-transaction can leave the
+        # session in a broken state for subsequent requests on the same worker.
+        db.session.rollback()
+        return render_template('errors/500.html'), 500
+
+    @app.errorhandler(403)
+    def forbidden(error):
+        return render_template('errors/403.html'), 403
 
     return app

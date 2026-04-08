@@ -91,9 +91,8 @@ def training_add():
         if not expiration_date:
             tt = TrainingType.query.filter_by(name=training_type).first()
             if tt and tt.has_expiration and tt.expiration_years:
-                expiration_date = form.completion_date.data.replace(
-                    year=form.completion_date.data.year + tt.expiration_years
-                )
+                from ..utils import add_years
+                expiration_date = add_years(form.completion_date.data, tt.expiration_years)
 
         training = MemberTraining(
             member_id=current_user.id,

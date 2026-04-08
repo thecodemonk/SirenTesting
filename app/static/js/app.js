@@ -51,8 +51,17 @@ document.addEventListener('DOMContentLoaded', function () {
     toggleRotation();
   }
 
-  // Confirm dialogs for destructive actions
-  document.querySelectorAll('[data-confirm]').forEach(function (el) {
+  // Confirm dialogs for destructive actions. Listen for `submit` on forms
+  // and `click` on buttons/links — without this, putting data-confirm on a
+  // <form> silently does nothing because the click event fires on the button.
+  document.querySelectorAll('form[data-confirm]').forEach(function (el) {
+    el.addEventListener('submit', function (e) {
+      if (!confirm(el.dataset.confirm)) {
+        e.preventDefault();
+      }
+    });
+  });
+  document.querySelectorAll('button[data-confirm], a[data-confirm]').forEach(function (el) {
     el.addEventListener('click', function (e) {
       if (!confirm(el.dataset.confirm)) {
         e.preventDefault();
@@ -70,6 +79,26 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     });
   }
+
+  // Generic clickable rows with keyboard support. Use class js-clickable-row
+  // and a data-href attribute. Rows must also be tabindex=0 role=link so
+  // screen readers and keyboard users can reach and activate them.
+  document.querySelectorAll('.js-clickable-row').forEach(function (row) {
+    var href = row.dataset.href;
+    if (!href) return;
+    row.addEventListener('click', function (e) {
+      // Don't intercept clicks on inner links/buttons/forms
+      if (e.target.closest('a, button, input, label, form')) return;
+      window.location = href;
+    });
+    row.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        if (e.target.closest('a, button, input, label, form')) return;
+        e.preventDefault();
+        window.location = href;
+      }
+    });
+  });
 
   // Training form: show/hide custom type field
   var trainingTypeSelect = document.getElementById('training-type-select');

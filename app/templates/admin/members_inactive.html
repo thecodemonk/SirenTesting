@@ -3,7 +3,7 @@
 
 {% block admin_content %}
 <h2 class="mb-4">Inactive Members</h2>
-<p class="text-muted">Active members with no event attendance in the last 12 months.</p>
+<p class="text-muted">Members currently active in at least one program but with no event attendance in the last 12 months. Pending registrations are excluded.</p>
 
 {% if members %}
 <div class="table-responsive">
@@ -25,10 +25,10 @@
         <td>{{ m.email }}</td>
         <td>{{ m.last_active_date|format_date if m.last_active_date else 'Never' }}</td>
         <td>
-          <form method="post" action="{{ url_for('admin.member_toggle_active', id=m.id) }}" class="d-inline">
+          <form method="post" action="{{ url_for('admin.member_toggle_active', id=m.id) }}" class="d-inline"
+                data-confirm="Archive {{ m.name }}? They'll be hidden from current pickers and reports but kept in history.">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-sm btn-outline-warning"
-                    onclick="return confirm('Mark {{ m.name }} as inactive?')">Deactivate</button>
+            <button type="submit" class="btn btn-sm btn-outline-danger">Archive</button>
           </form>
         </td>
       </tr>

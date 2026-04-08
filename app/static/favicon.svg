@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Background: ARPSC blue -->
+  <rect width="64" height="64" rx="12" fill="#0d6efd"/>
+  <!-- Antenna mast -->
+  <line x1="32" y1="20" x2="32" y2="52" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  <!-- Antenna top -->
+  <circle cx="32" cy="18" r="3" fill="#ffffff"/>
+  <!-- Inner radio waves -->
+  <path d="M 24 26 Q 19 32 24 38" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M 40 26 Q 45 32 40 38" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Outer radio waves -->
+  <path d="M 17 22 Q 9 32 17 42" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.75"/>
+  <path d="M 47 22 Q 55 32 47 42" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.75"/>
+  <!-- Base -->
+  <rect x="26" y="50" width="12" height="3" rx="1" fill="#ffffff"/>
+</svg>

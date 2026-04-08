@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Access Denied — ARPSC Manager{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-6 text-center">
+    <h1 class="display-1 text-muted">403</h1>
+    <h2 class="mb-3">Access Denied</h2>
+    <p class="lead">You don't have permission to view that page.</p>
+    <a href="{{ url_for('public.dashboard') }}" class="btn btn-primary mt-3">Back to Dashboard</a>
+  </div>
+</div>
+{% endblock %}
