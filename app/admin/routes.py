@@ -162,20 +162,37 @@ def test_add():
 
 
 def _create_siren_test_event(test, siren):
-    """Auto-create an Event and optional attendance when a siren test is recorded."""
-    event = Event(
+    """Add the test's observer as an attendee on the Siren Test event for
+    test.test_date, creating that event if no one has logged a test for
+    that date yet.
+
+    A scheduled siren test is a single ~30-minute event during which
+    multiple volunteers each test a different siren. Net control then
+    enters all the results afterward. We want exactly one Event per test
+    date with all the volunteers as attendees — not one event per test
+    result. The previous version of this helper created a fresh Event on
+    every call, which produced N duplicate events for any test day with
+    N siren results."""
+    event = Event.query.filter_by(
         date=test.test_date,
         event_type='Siren Test',
         category='Siren Test',
-        description=f'Siren test: {siren.siren_id} — {siren.name}',
-        duration_hours=0.5,
-        created_by_id=current_user.id if current_user.is_authenticated else None,
-        siren_test_id=test.id,
-    )
-    db.session.add(event)
-    db.session.flush()  # Get event.id
+    ).first()
 
-    # Try to match observer to a member
+    if event is None:
+        event = Event(
+            date=test.test_date,
+            event_type='Siren Test',
+            category='Siren Test',
+            description='Siren Test',
+            duration_hours=0.5,
+            created_by_id=current_user.id if current_user.is_authenticated else None,
+            siren_test_id=test.id,
+        )
+        db.session.add(event)
+        db.session.flush()  # Get event.id
+
+    # Try to match observer to a member by callsign first, then by name
     observer_member = Member.query.filter(
         db.func.lower(Member.callsign) == test.observer.strip().lower()
     ).first()
@@ -185,17 +202,22 @@ def _create_siren_test_event(test, siren):
         ).first()
 
     if observer_member:
-        attendance = EventAttendance(
-            event_id=event.id,
-            member_id=observer_member.id,
-            hours=0.5,
-        )
-        db.session.add(attendance)
-        # Update last active date
+        # An observer who tested multiple sirens during one event should
+        # get 0.5h credit once, not 0.5h × N. Skip if already attending.
+        already = EventAttendance.query.filter_by(
+            event_id=event.id, member_id=observer_member.id
+        ).first()
+        if already is None:
+            db.session.add(EventAttendance(
+                event_id=event.id,
+                member_id=observer_member.id,
+                hours=0.5,
+            ))
         if not observer_member.last_active_date or observer_member.last_active_date < test.test_date:
             observer_member.last_active_date = test.test_date
 
     db.session.commit()
+    return event
 
 
 @admin_bp.route('/tests/<int:id>/edit', methods=['GET', 'POST'])
