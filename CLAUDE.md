@@ -17,7 +17,7 @@ Management platform for St. Clair County ARPSC (Amateur Radio Public Service Cor
   - `admin/` — Siren/test/assignment/event/member/commlog/taskbook management (Google OAuth required)
   - `auth/` — Google Workspace OAuth login (admin)
   - `members/` — Member self-service: magic link login, profile, equipment, training, task books, activity
-  - `models.py` — Siren, Test, Assignment, AdminUser, TestSchedule, Member, EquipmentType, MemberEquipmentItem, TrainingType, MemberTraining, TaskBookLevel, TaskBookTask, MemberTaskBookProgress, Event, EventAttendance, CommLog, CommLogEntry
+  - `models.py` — Siren, SirenMaintenanceLog, Test, Assignment, AdminUser, TestSchedule, Member, EquipmentType, MemberEquipmentItem, TrainingType, MemberTraining, TaskBookLevel, TaskBookTask, MemberTaskBookProgress, Event, EventAttendance, CommLog, CommLogEntry
   - `gmail.py` — Gmail API send (OAuth token in `instance/gmail_token.json`)
   - `utils.py` — Status computation, photo processing, email notifications, inactivity detection
   - `reports.py` — Monthly state report generation with ARES category mapping
@@ -58,9 +58,9 @@ sudo systemctl restart sirentracker
 
 ## Siren Statuses (priority order)
 1. **Failed** — tested this year and failed
-2. **Passed** — tested this year and passed
-3. **Overdue** — no test in over 12 months or never tested
-4. **Flagged** — manually marked for recheck (needs_retest)
+2. **Flagged** — manually marked for recheck (needs_retest); overrides Passed
+3. **Passed** — tested this year and passed
+4. **Overdue** — no test in over 12 months or never tested
 5. **Assigned** — volunteer claimed for upcoming test
 6. **Untested** — not yet tested this year (but tested within 12 months)
 

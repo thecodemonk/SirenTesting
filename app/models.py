@@ -24,8 +24,21 @@ class Siren(db.Model):
                             order_by='Test.test_date.desc()')
     assignments = db.relationship('Assignment', backref='siren', lazy='select')
 
+    maintenance_log = db.relationship('SirenMaintenanceLog', backref='siren', lazy='select',
+                                      order_by='SirenMaintenanceLog.created_at.desc()')
+
     def __repr__(self):
         return f'<Siren {self.siren_id}: {self.name}>'
+
+
+class SirenMaintenanceLog(db.Model):
+    __tablename__ = 'siren_maintenance_log'
+
+    id = db.Column(db.Integer, primary_key=True)
+    siren_id = db.Column(db.Integer, db.ForeignKey('sirens.id'), nullable=False, index=True)
+    author = db.Column(db.Text, nullable=False)
+    note = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class Test(db.Model):
@@ -132,6 +145,8 @@ class Member(db.Model, UserMixin):
     siren_testing_deactivated_at = db.Column(db.Date)
     background_check = db.Column(db.Boolean, default=False)
     mi_volunteer_registry = db.Column(db.Boolean, default=False)
+    # Member permissions (admin-controlled)
+    can_edit_sirens = db.Column(db.Boolean, default=False)
     # Overall record status — False means archived (left org / deceased)
     active = db.Column(db.Boolean, default=True)
     archived_at = db.Column(db.Date)

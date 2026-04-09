@@ -71,14 +71,19 @@ def get_all_siren_statuses(sirens, year=None):
     )
 
     # Compute statuses
+    # Priority: failed > flagged > passed > overdue > assigned > untested
+    # "Flagged" (needs_retest) overrides "passed" so admins can mark a
+    # previously-passing siren for recheck and have it show on the dashboard.
     statuses = {}
     for sid in siren_ids:
-        if sid in year_results:
-            statuses[sid] = 'passed' if year_results[sid] else 'failed'
-        elif sid not in last_test_dates or last_test_dates[sid] < overdue_cutoff:
-            statuses[sid] = 'overdue'
+        if sid in year_results and not year_results[sid]:
+            statuses[sid] = 'failed'
         elif siren_map[sid].needs_retest:
             statuses[sid] = 'flagged'
+        elif sid in year_results:
+            statuses[sid] = 'passed'
+        elif sid not in last_test_dates or last_test_dates[sid] < overdue_cutoff:
+            statuses[sid] = 'overdue'
         elif sid in assigned_siren_ids:
             statuses[sid] = 'assigned'
         else:
@@ -164,10 +169,13 @@ def _fix_orientation(img):
 
 def get_inactive_members(threshold_days=365):
     """Return members who are admin-active in at least one program but have
-    had no event attendance in the last threshold_days. Pending registrations
-    (members with interests checked but no admin approval yet) are excluded
-    so they aren't mistakenly flagged as 'inactive' on day one."""
+    had no event attendance in the last threshold_days. Excluded:
+    - Pending registrations (interests only, no admin-active flag)
+    - Members created within the threshold period (new, not inactive)
+    - Members whose last_active_date is within the threshold (catches
+      siren-test activity that wasn't linked to EventAttendance)"""
     from .models import Member, EventAttendance, Event
+    from datetime import datetime as dt
     cutoff = date.today() - timedelta(days=threshold_days)
 
     # Subquery: members who have attendance after cutoff
@@ -186,7 +194,15 @@ def get_inactive_members(threshold_days=365):
             Member.skywarn_active == True,
             Member.siren_testing_active == True,
         ),
-        ~Member.id.in_(db.select(active_member_ids.c.member_id))
+        ~Member.id.in_(db.select(active_member_ids.c.member_id)),
+        # Don't flag members who joined recently — they're new, not inactive
+        Member.created_at < dt(cutoff.year, cutoff.month, cutoff.day),
+        # Also honour last_active_date as a fallback (set by siren test
+        # attendance even when observer→member matching fails for events)
+        db.or_(
+            Member.last_active_date == None,
+            Member.last_active_date < cutoff,
+        ),
     ).order_by(Member.name).all()
 
 

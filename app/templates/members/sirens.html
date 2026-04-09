@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Sirens — ARPSC Manager{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-12">
+    <h2 class="mb-4">Sirens</h2>
+
+    <div class="table-responsive">
+      <table class="table table-hover">
+        <thead class="table-dark">
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Location</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Last Test</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for siren in sirens %}
+          <tr class="{{ statuses[siren.id] | status_class }}">
+            <td>{{ siren.siren_id }}</td>
+            <td>{{ siren.name }}</td>
+            <td>{{ siren.location_text or '' }}</td>
+            <td>{{ siren.siren_type }}</td>
+            <td><span class="badge bg-{{ statuses[siren.id] | status_badge }}">{{ statuses[siren.id] | capitalize }}</span></td>
+            <td>{{ last_tests.get(siren.id, '') | format_date }}</td>
+            <td><a href="{{ url_for('members.siren_edit', id=siren.id) }}" class="btn btn-sm btn-outline-primary">Edit</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

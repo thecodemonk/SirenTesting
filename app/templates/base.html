@@ -33,6 +33,10 @@
               <li><a class="dropdown-item" href="{{ url_for('members.training') }}">My Training</a></li>
               <li><a class="dropdown-item" href="{{ url_for('members.taskbooks') }}">My Task Books</a></li>
               <li><a class="dropdown-item" href="{{ url_for('members.activity') }}">My Activity</a></li>
+              {% if current_user.can_edit_sirens %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{{ url_for('members.sirens') }}">Manage Sirens</a></li>
+              {% endif %}
             </ul>
           </li>
           {% endif %}

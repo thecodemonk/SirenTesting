@@ -4,12 +4,13 @@ from flask import render_template, request, flash, redirect, url_for
 from flask_login import current_user
 
 from . import members_bp
-from .decorators import member_required
-from .forms import ProfileForm, TrainingForm
+from .decorators import member_required, siren_editor_required
+from .forms import ProfileForm, TrainingForm, SirenEditForm, MaintenanceNoteForm
 from ..extensions import db
 from ..models import (
     Member, MemberEquipmentItem, EquipmentType, MemberTraining, TrainingType,
     EventAttendance, Event, TaskBookLevel, MemberTaskBookProgress,
+    Siren, SirenMaintenanceLog,
 )
 
 
@@ -148,3 +149,52 @@ def activity():
         .all()
     )
     return render_template('members/activity.html', records=records)
+
+
+# --- Siren Management (requires can_edit_sirens permission) ---
+
+@members_bp.route('/sirens')
+@siren_editor_required
+def sirens():
+    from ..utils import get_all_siren_statuses
+    all_sirens = Siren.query.order_by(Siren.siren_id).all()
+    statuses, last_tests = get_all_siren_statuses(all_sirens)
+    return render_template('members/sirens.html', sirens=all_sirens,
+                           statuses=statuses, last_tests=last_tests)
+
+
+@members_bp.route('/sirens/<int:id>/edit', methods=['GET', 'POST'])
+@siren_editor_required
+def siren_edit(id):
+    from flask import abort
+    siren = db.session.get(Siren, id) or abort(404)
+    form = SirenEditForm(obj=siren)
+    note_form = MaintenanceNoteForm()
+
+    if form.validate_on_submit() and 'save_siren' in request.form:
+        siren.active = form.active.data
+        siren.needs_retest = form.needs_retest.data
+        db.session.commit()
+        flash(f'Siren {siren.siren_id} updated.', 'success')
+        return redirect(url_for('members.siren_edit', id=id))
+
+    return render_template('members/siren_edit.html', siren=siren,
+                           form=form, note_form=note_form)
+
+
+@members_bp.route('/sirens/<int:id>/notes', methods=['POST'])
+@siren_editor_required
+def siren_add_note(id):
+    from flask import abort
+    siren = db.session.get(Siren, id) or abort(404)
+    form = MaintenanceNoteForm()
+    if form.validate_on_submit():
+        log = SirenMaintenanceLog(
+            siren_id=siren.id,
+            author=current_user.name,
+            note=form.note.data.strip(),
+        )
+        db.session.add(log)
+        db.session.commit()
+        flash('Maintenance note added.', 'success')
+    return redirect(url_for('members.siren_edit', id=id))

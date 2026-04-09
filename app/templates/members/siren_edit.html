@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ siren.name }} — ARPSC Manager{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-10">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('members.sirens') }}">Sirens</a></li>
+        <li class="breadcrumb-item active">{{ siren.siren_id }} — {{ siren.name }}</li>
+      </ol>
+    </nav>
+
+    <h2 class="mb-4">{{ siren.siren_id }} — {{ siren.name }}</h2>
+
+    <div class="card mb-4">
+      <div class="card-header"><strong>Siren Details</strong></div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-3">Location</dt>
+          <dd class="col-sm-9">{{ siren.location_text or 'N/A' }}</dd>
+          <dt class="col-sm-3">Type</dt>
+          <dd class="col-sm-9">{{ siren.siren_type }}</dd>
+          <dt class="col-sm-3">Year in Service</dt>
+          <dd class="col-sm-9">{{ siren.year_in_service or 'N/A' }}</dd>
+        </dl>
+
+        <form method="post">
+          {{ form.hidden_tag() }}
+          <div class="row mt-3">
+            <div class="col-auto">
+              <div class="form-check">
+                {{ form.active(class="form-check-input") }}
+                {{ form.active.label(class="form-check-label") }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <div class="form-check">
+                {{ form.needs_retest(class="form-check-input") }}
+                {{ form.needs_retest.label(class="form-check-label") }}
+              </div>
+            </div>
+            <div class="col-auto">
+              <button type="submit" name="save_siren" class="btn btn-primary btn-sm">Save</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header"><strong>Maintenance Log</strong></div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('members.siren_add_note', id=siren.id) }}">
+          {{ note_form.hidden_tag() }}
+          <div class="mb-3">
+            {{ note_form.note(class="form-control", rows=2, placeholder="Add a maintenance note...") }}
+            {% for error in note_form.note.errors %}
+            <div class="invalid-feedback d-block">{{ error }}</div>
+            {% endfor %}
+          </div>
+          <button type="submit" class="btn btn-outline-primary btn-sm">Add Note</button>
+        </form>
+
+        {% if siren.maintenance_log %}
+        <hr>
+        <div class="list-group list-group-flush">
+          {% for entry in siren.maintenance_log %}
+          <div class="list-group-item px-0">
+            <div class="d-flex justify-content-between">
+              <strong>{{ entry.author }}</strong>
+              <small class="text-muted">{{ entry.created_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+            </div>
+            <div>{{ entry.note }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted mt-3 mb-0">No maintenance notes yet.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

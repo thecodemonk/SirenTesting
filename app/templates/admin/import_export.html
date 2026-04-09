@@ -16,6 +16,7 @@
       <a href="{{ url_for('admin.export_csv', table='tests') }}" class="btn btn-outline-primary btn-sm">Tests</a>
       <a href="{{ url_for('admin.export_csv', table='assignments') }}" class="btn btn-outline-primary btn-sm">Assignments</a>
       <a href="{{ url_for('admin.export_csv', table='schedules') }}" class="btn btn-outline-primary btn-sm">Schedules</a>
+      <a href="{{ url_for('admin.export_csv', table='maintenance_log') }}" class="btn btn-outline-primary btn-sm">Maintenance Log</a>
     </div>
 
     <h6 class="text-muted">Members</h6>
@@ -63,6 +64,9 @@
         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#import-schedules">Schedules</button>
       </li>
       <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#import-maintenance-log">Maintenance Log</button>
+      </li>
+      <li class="nav-item">
         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#import-members">Members</button>
       </li>
       <li class="nav-item">
@@ -78,7 +82,8 @@
 
     <div class="tab-content">
       <div class="tab-pane fade show active" id="import-sirens">
-        <p>Columns: <code>siren_id, name, location_text, location_url, coordinates, year_in_service, siren_type</code></p>
+        <p>Columns: <code>siren_id, name, location_text, location_url, coordinates, year_in_service, siren_type, active, needs_retest</code><br>
+        <code>active</code> and <code>needs_retest</code> are optional booleans (default: active=true, needs_retest=false).</p>
         <form method="post" action="{{ url_for('admin.import_csv', table='sirens') }}" enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
@@ -124,10 +129,23 @@
         </form>
       </div>
 
+      <div class="tab-pane fade" id="import-maintenance-log">
+        <p>Columns: <code>siren_id, author, note, created_at</code><br>
+        Siren matched by <code>siren_id</code>. <code>created_at</code> is optional (defaults to now).</p>
+        <form method="post" action="{{ url_for('admin.import_csv', table='maintenance_log') }}" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3">
+            <input type="file" name="file" class="form-control" accept=".csv" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Upload &amp; Preview</button>
+        </form>
+      </div>
+
       <div class="tab-pane fade" id="import-members">
-        <p>Columns: <code>name, callsign, email, phone, city, state, interest_skywarn, interest_ares_auxcomm, interest_siren_testing, arpsc_active, skywarn_active, siren_testing_active</code><br>
+        <p>Columns: <code>name, callsign, email, phone, city, state, interest_skywarn, interest_ares_auxcomm, interest_siren_testing, arpsc_active, skywarn_active, siren_testing_active, can_edit_sirens</code><br>
         Email is required and used to match existing members (updates) or create new ones.
-        <code>*_active</code> flags are admin-only — toggling one auto-stamps the activation/deactivation date.</p>
+        <code>*_active</code> flags are admin-only — toggling one auto-stamps the activation/deactivation date.
+        <code>can_edit_sirens</code> grants the member permission to edit siren details and add maintenance notes.</p>
         <form method="post" action="{{ url_for('admin.import_csv', table='members') }}" enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">

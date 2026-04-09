@@ -19,7 +19,7 @@ from .forms import (
 from . import admin_bp
 from ..extensions import db
 from ..models import (
-    Siren, Test, Assignment, TestSchedule, AdminUser,
+    Siren, SirenMaintenanceLog, Test, Assignment, TestSchedule, AdminUser,
     Member, MemberEquipmentItem, EquipmentType, MemberTraining, TrainingType,
     Event, EventAttendance,
     CommLog, CommLogEntry,
@@ -71,6 +71,23 @@ def siren_edit(id):
         flash(f'Siren {siren.siren_id} updated.', 'success')
         return redirect(url_for('admin.sirens'))
     return render_template('admin/siren_form.html', form=form, siren=siren)
+
+
+@admin_bp.route('/sirens/<int:id>/notes', methods=['POST'])
+@admin_required
+def siren_add_note(id):
+    siren = db.session.get(Siren, id) or abort(404)
+    note = request.form.get('note', '').strip()
+    if note:
+        log = SirenMaintenanceLog(
+            siren_id=siren.id,
+            author=current_user.display_name or current_user.email,
+            note=note,
+        )
+        db.session.add(log)
+        db.session.commit()
+        flash('Maintenance note added.', 'success')
+    return redirect(url_for('admin.siren_edit', id=id))
 
 
 # --- Tests ---
@@ -1335,6 +1352,7 @@ def export_csv(table):
                     'arpsc_activated_at', 'arpsc_deactivated_at',
                     'skywarn_activated_at', 'skywarn_deactivated_at',
                     'siren_testing_activated_at', 'siren_testing_deactivated_at',
+                    'can_edit_sirens',
                     'active', 'archived_at', 'last_active_date']
         rows = Member.query.order_by(Member.name).all()
     elif table == 'events':
@@ -1395,6 +1413,19 @@ def export_csv(table):
                 'to_callsign': e.to_callsign or '',
                 'to_msg_num': e.to_msg_num or '', 'message': e.message or '',
             }
+    elif table == 'maintenance_log':
+        columns = ['siren_id', 'author', 'note', 'created_at']
+        rows = (SirenMaintenanceLog.query
+                .join(Siren)
+                .order_by(SirenMaintenanceLog.created_at.desc())
+                .all())
+        def row_dict(entry):
+            return {
+                'siren_id': entry.siren.siren_id,
+                'author': entry.author,
+                'note': entry.note,
+                'created_at': entry.created_at,
+            }
     elif table == 'equipment_types':
         columns = ['name', 'has_details', 'display_order']
         rows = EquipmentType.query.order_by(EquipmentType.display_order).all()
@@ -1407,7 +1438,7 @@ def export_csv(table):
 
     # Tables that use custom row_dict
     custom_tables = ('tests', 'assignments', 'attendance', 'member_training',
-                     'member_equipment', 'comm_log_entries')
+                     'member_equipment', 'comm_log_entries', 'maintenance_log')
 
     def _sanitize_row(d):
         return {k: _sanitize_csv_value(v) for k, v in d.items()}
@@ -1449,7 +1480,8 @@ def import_export():
 @admin_required
 def import_csv(table):
     allowed = ('sirens', 'tests', 'assignments', 'schedules',
-               'members', 'events', 'member_training', 'attendance')
+               'members', 'events', 'member_training', 'attendance',
+               'maintenance_log')
     if table not in allowed:
         flash('Unknown import type.', 'danger')
         return redirect(url_for('admin.import_export'))
@@ -1525,6 +1557,10 @@ def import_confirm():
                     existing.year_in_service = row.get('year_in_service', existing.year_in_service)
                     stype = (row.get('siren_type') or '').strip().upper()
                     existing.siren_type = stype if stype in ('FIXED', 'ROTATE') else existing.siren_type
+                    if row.get('active', '').strip() != '':
+                        existing.active = _to_bool(row['active']) if _to_bool(row['active']) is not None else existing.active
+                    if row.get('needs_retest', '').strip() != '':
+                        existing.needs_retest = _to_bool(row['needs_retest']) or False
                     updated += 1
                 else:
                     stype = (row.get('siren_type') or '').strip().upper()
@@ -1536,6 +1572,8 @@ def import_confirm():
                         coordinates=row.get('coordinates'),
                         year_in_service=row.get('year_in_service'),
                         siren_type=stype if stype in ('FIXED', 'ROTATE') else 'FIXED',
+                        active=_to_bool(row.get('active', 'true')) if row.get('active', '').strip() != '' else True,
+                        needs_retest=_to_bool(row.get('needs_retest', 'false')) or False,
                     )
                     db.session.add(siren)
                     added += 1
@@ -1625,6 +1663,7 @@ def import_confirm():
             program_bool_cols = (
                 'interest_skywarn', 'interest_ares_auxcomm', 'interest_siren_testing',
                 'arpsc_active', 'skywarn_active', 'siren_testing_active',
+                'can_edit_sirens',
             )
             for row in reader:
                 email = (row.get('email') or '').strip().lower()
@@ -1663,6 +1702,7 @@ def import_confirm():
                         arpsc_active=_to_bool(row.get('arpsc_active', 'false')) or False,
                         skywarn_active=_to_bool(row.get('skywarn_active', 'false')) or False,
                         siren_testing_active=_to_bool(row.get('siren_testing_active', 'false')) or False,
+                        can_edit_sirens=_to_bool(row.get('can_edit_sirens', 'false')) or False,
                         active=_to_bool(row.get('active', 'true')) if row.get('active', '').strip() != '' else True,
                     )
                     today = date.today()
@@ -1778,6 +1818,37 @@ def import_confirm():
                     event_id=event.id, member_id=member.id, hours=hours,
                 )
                 db.session.add(att)
+                added += 1
+
+        elif table == 'maintenance_log':
+            for row in reader:
+                ext_id = (row.get('siren_id') or '').strip()
+                if not ext_id:
+                    skipped += 1
+                    continue
+                siren = Siren.query.filter_by(siren_id=ext_id).first()
+                if not siren:
+                    skipped += 1
+                    continue
+                note_text = (row.get('note') or '').strip()
+                if not note_text:
+                    skipped += 1
+                    continue
+                author = (row.get('author') or '').strip() or 'Import'
+                created_at = None
+                if row.get('created_at', '').strip():
+                    try:
+                        created_at = datetime.fromisoformat(row['created_at'].strip())
+                    except ValueError:
+                        pass
+                entry = SirenMaintenanceLog(
+                    siren_id=siren.id,
+                    author=author,
+                    note=note_text,
+                )
+                if created_at:
+                    entry.created_at = created_at
+                db.session.add(entry)
                 added += 1
 
         db.session.commit()

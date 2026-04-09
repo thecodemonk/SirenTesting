@@ -33,6 +33,25 @@
   </div>
 </div>
 
+{% if siren.maintenance_log %}
+<div class="card mb-4">
+  <div class="card-header"><strong>Maintenance Log</strong></div>
+  <div class="card-body">
+    <div class="list-group list-group-flush">
+      {% for entry in siren.maintenance_log %}
+      <div class="list-group-item px-0">
+        <div class="d-flex justify-content-between">
+          <strong>{{ entry.author }}</strong>
+          <small class="text-muted">{{ entry.created_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+        </div>
+        <div>{{ entry.note }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <h3>Test History</h3>
 {% for year, tests in tests_by_year %}
 <h5 class="mt-3">{{ year }}</h5>

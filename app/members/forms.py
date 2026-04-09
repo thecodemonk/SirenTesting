@@ -53,6 +53,16 @@ class ProfileForm(FlaskForm):
     interest_siren_testing = BooleanField('Siren Testing')
 
 
+class SirenEditForm(FlaskForm):
+    """Limited siren edit form for members with can_edit_sirens permission."""
+    active = BooleanField('Active')
+    needs_retest = BooleanField('Needs Retest')
+
+
+class MaintenanceNoteForm(FlaskForm):
+    note = TextAreaField('Note', validators=[DataRequired(), Length(max=2000)])
+
+
 class TrainingForm(FlaskForm):
     training_type = SelectField('Training Type', choices=[
         ('IS-100', 'IS-100'), ('IS-200', 'IS-200'),

@@ -69,4 +69,32 @@
   <button type="submit" class="btn btn-primary">Save</button>
   <a href="{{ url_for('admin.sirens') }}" class="btn btn-secondary">Cancel</a>
 </form>
+
+{% if siren %}
+<hr>
+<h4 class="mt-4">Maintenance Log</h4>
+<form method="post" action="{{ url_for('admin.siren_add_note', id=siren.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="mb-3">
+    <textarea name="note" class="form-control" rows="2" placeholder="Add a maintenance note..." required maxlength="2000"></textarea>
+  </div>
+  <button type="submit" class="btn btn-outline-primary btn-sm">Add Note</button>
+</form>
+
+{% if siren.maintenance_log %}
+<div class="list-group list-group-flush mt-3">
+  {% for entry in siren.maintenance_log %}
+  <div class="list-group-item px-0">
+    <div class="d-flex justify-content-between">
+      <strong>{{ entry.author }}</strong>
+      <small class="text-muted">{{ entry.created_at.strftime('%b %d, %Y %I:%M %p') }}</small>
+    </div>
+    <div>{{ entry.note }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-muted mt-3">No maintenance notes yet.</p>
+{% endif %}
+{% endif %}
 {% endblock %}

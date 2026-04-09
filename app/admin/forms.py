@@ -127,6 +127,7 @@ class MemberAdminForm(FlaskForm):
     siren_testing_active = BooleanField('Siren Testing Active')
     background_check = BooleanField('Background Check')
     mi_volunteer_registry = BooleanField('MI Volunteer Registry')
+    can_edit_sirens = BooleanField('Can Edit Sirens')
     active = BooleanField('Active (not archived)')
     notes = TextAreaField('Admin Notes', validators=[Optional(), Length(max=2000)])
 
