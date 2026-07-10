@@ -125,6 +125,20 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
+  // Format any <time class="js-localtime" datetime="<ISO>"> into the visitor's
+  // own locale and time zone. The server emits raw ISO 8601 (with offset); the
+  // browser is the only place that knows the user's actual time zone.
+  document.querySelectorAll('.js-localtime').forEach(function (el) {
+    var iso = el.getAttribute('datetime');
+    if (!iso) return;
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return; // leave the original text if unparseable
+    el.textContent = d.toLocaleString(undefined, {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+    });
+  });
+
   // Training form: show/hide custom type field
   var trainingTypeSelect = document.getElementById('training-type-select');
   var customTypeGroup = document.getElementById('custom-type-group');

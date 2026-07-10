@@ -27,6 +27,11 @@ class BaseConfig:
     MEDIA_FOLDER = os.path.join(BASE_DIR, 'media', 'photos')
     MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB
 
+    # NWS active-alerts feed (Storm Center). No API key; User-Agent required.
+    # NWS_ZONE is a county/zone UGC code — St. Clair County, MI is MIC147.
+    NWS_ZONE = os.environ.get('NWS_ZONE', 'MIC147')
+    NWS_USER_AGENT = os.environ.get('NWS_USER_AGENT', '(sccarpsc.org, noreply@sccarpsc.org)')
+
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
 

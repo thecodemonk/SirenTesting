@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Report Storm Damage — ARPSC Manager{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/leaflet.css') }}">
+{% endblock %}
+
+{% block content %}
+<h1>Report Storm Damage</h1>
+<p class="text-muted">
+  Report what you're seeing — wind, hail, flooding, or damage. Add a photo and your
+  location if you can. Stay safe: never put yourself at risk to file a report.
+</p>
+
+{% if not current_user.is_authenticated %}
+<div class="alert alert-info alert-dismissible fade show" role="alert">
+  <strong>ARPSC member or spotter?</strong>
+  <a href="{{ url_for('members.login') }}">Log in</a> so your report posts immediately.
+  Public reports are reviewed by an admin before appearing on the map.
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="row">
+  <div class="col-md-8 col-lg-6">
+    <form method="post" action="{{ url_for('storm.report') }}" enctype="multipart/form-data">
+      {{ form.hidden_tag() }}
+      {# Honeypot — hidden from real users #}
+      <div style="display: none;">
+        {{ form.website(tabindex="-1", autocomplete="off") }}
+      </div>
+
+      <div class="mb-3">
+        {{ form.reporter_name.label(class="form-label") }}
+        {{ form.reporter_name(class="form-control form-control-lg") }}
+        {% for error in form.reporter_name.errors %}
+        <div class="invalid-feedback d-block">{{ error }}</div>
+        {% endfor %}
+      </div>
+
+      <div class="mb-3">
+        {{ form.damage_type.label(class="form-label") }}
+        {{ form.damage_type(class="form-select form-select-lg") }}
+        {% for error in form.damage_type.errors %}
+        <div class="invalid-feedback d-block">{{ error }}</div>
+        {% endfor %}
+      </div>
+
+      <div class="mb-3">
+        {{ form.description.label(class="form-label") }}
+        {{ form.description(class="form-control", rows="3",
+             placeholder="Quarter-size hail, tree down across Main St, etc.") }}
+      </div>
+
+      <div class="mb-3">
+        {{ form.location_text.label(class="form-label") }}
+        {{ form.location_text(class="form-control", placeholder="Nearest cross streets or landmark") }}
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">GPS Location</label>
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" id="geo-btn" class="btn btn-outline-primary">
+            &#128205; Use my location
+          </button>
+          <span id="geo-status" class="text-muted small">Optional — helps place your report on the map.</span>
+        </div>
+        {{ form.coordinates(id="coordinates") }}
+        <div id="damage-map" style="height: 260px;" class="rounded border mt-2"></div>
+        <div class="form-text">Tap the map to drop or move a pin.</div>
+      </div>
+
+      <div class="mb-3">
+        {{ form.photo.label(class="form-label") }}
+        {{ form.photo(class="form-control", accept="image/*", capture="environment") }}
+        <div class="form-text">A photo helps a lot. It'll be resized automatically.</div>
+        {% for error in form.photo.errors %}
+        <div class="invalid-feedback d-block">{{ error }}</div>
+        {% endfor %}
+      </div>
+
+      {% if not current_user.is_authenticated and config.RECAPTCHA_SITE_KEY %}
+      <div class="mb-3">
+        <div class="g-recaptcha" data-sitekey="{{ config.RECAPTCHA_SITE_KEY }}"></div>
+      </div>
+      <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+      {% endif %}
+
+      <button type="submit" class="btn btn-danger btn-lg">Submit Report</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/leaflet.js') }}"></script>
+<script src="{{ url_for('static', filename='js/storm-map.js') }}"></script>
+<script>
+  initDamagePicker('damage-map', 'coordinates', 'geo-status');
+
+  (function () {
+    var btn = document.getElementById('geo-btn');
+    var status = document.getElementById('geo-status');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      if (!navigator.geolocation) {
+        status.textContent = 'Geolocation not available on this device.';
+        return;
+      }
+      status.textContent = 'Locating…';
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        // Drop the pin on the map (also fills the hidden field + status)
+        if (window.stormSetPoint) {
+          window.stormSetPoint(pos.coords.latitude, pos.coords.longitude, true);
+        }
+        btn.classList.replace('btn-outline-primary', 'btn-success');
+      }, function () {
+        status.textContent = 'Could not get location — you can describe it above or tap the map.';
+      }, { enableHighAccuracy: true, timeout: 10000 });
+    });
+  })();
+</script>
+{% endblock %}

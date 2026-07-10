@@ -34,8 +34,11 @@
         <td>{{ e.to_callsign or '' }}</td>
         <td>{{ e.to_msg_num or '' }}</td>
         <td>{{ e.message or '' }}</td>
-        <td>
-          <form method="post" action="{{ url_for('admin.commlog_entry_delete', id=commlog.id, entry_id=e.id) }}"
+        <td class="text-nowrap">
+          <a href="{{ url_for('admin.commlog_entry_edit', id=commlog.id, entry_id=e.id) }}"
+             class="btn btn-sm btn-outline-primary">Edit</a>
+          <form method="post" class="d-inline"
+                action="{{ url_for('admin.commlog_entry_delete', id=commlog.id, entry_id=e.id) }}"
                 onsubmit="return confirm('Remove this entry?')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-sm btn-outline-danger">X</button>

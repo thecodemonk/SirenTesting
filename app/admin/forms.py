@@ -144,3 +144,70 @@ class TaskBookTaskForm(FlaskForm):
     name = StringField('Task Name', validators=[DataRequired(), Length(max=200)])
     description = TextAreaField('Description', validators=[Optional(), Length(max=2000)])
     display_order = IntegerField('Display Order', validators=[Optional()], default=0)
+
+
+class StormForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired(), Length(max=200)])
+    event_date = DateField('Date', validators=[DataRequired()])
+    nws_event_type = StringField('NWS Event Type', validators=[Optional(), Length(max=100)])
+    status = SelectField('Status', choices=[('ACTIVE', 'Active'), ('ARCHIVED', 'Archived')])
+    center_coordinates = StringField('Map Center (lat,lng)', validators=[Optional(), Length(max=50)])
+    # Optional link to an Event so SkyWarn activations flow to the state report
+    event_id = SelectField('Linked Event', coerce=int, validators=[Optional()])
+    summary = TextAreaField('Summary', validators=[Optional(), Length(max=4000)])
+    # SkyWarn Work Sheet header
+    net_control_name = StringField('Net Control Name', validators=[Optional(), Length(max=100)])
+    net_control_callsign = StringField('Callsign', validators=[Optional(), Length(max=20)])
+    freq_main = StringField('Main Freq.', validators=[Optional(), Length(max=60)])
+    freq_north = StringField('North Freq.', validators=[Optional(), Length(max=60)])
+    freq_south = StringField('South Freq.', validators=[Optional(), Length(max=60)])
+    freq_dtx = StringField('DTX Tx', validators=[Optional(), Length(max=60)])
+
+
+NET_CONDITIONS = [
+    ('Standby', 'Standby'), ('Green', 'Green'), ('Yellow', 'Yellow'),
+    ('Red', 'Red'), ('Close', 'Close'),
+]
+STATION_ROLES = [
+    ('Spotter', 'Spotter'), ('MICON liaison', 'MICON liaison'),
+    ('NWSchat', 'NWSchat'), ('Radar', 'Radar'), ('GroupMe', 'GroupMe'),
+    ('NCS', 'NCS'),
+]
+PASSED_VIA = [
+    ('', '—'), ('NWS', 'NWS'), ('HSEM', 'HSEM'), ('NWSchat', 'NWSchat'),
+    ('GroupMe', 'GroupMe'), ('Phone', 'Phone'), ('Other', 'Other'),
+]
+
+
+class WatchWarningForm(FlaskForm):
+    tsm_watch = BooleanField('TSM Watch')
+    tsm_warning = BooleanField('TSM Warning')
+    tdo_watch = BooleanField('TDO Watch')
+    tdo_warning = BooleanField('TDO Warning')
+    county = StringField('County', validators=[Optional(), Length(max=60)])
+    start_time = StringField('Start', validators=[Optional(), Length(max=20)])
+    end_time = StringField('End', validators=[Optional(), Length(max=20)])
+
+
+class NetConditionForm(FlaskForm):
+    condition = SelectField('Condition', choices=NET_CONDITIONS, validators=[DataRequired()])
+    reason = StringField('Reason', validators=[Optional(), Length(max=300)])
+    time = StringField('Time', validators=[Optional(), Length(max=20)])
+
+
+class NetStationForm(FlaskForm):
+    role = SelectField('Role', choices=STATION_ROLES, validators=[DataRequired()])
+    station = StringField('Station', validators=[DataRequired(), Length(max=30)])
+    location = StringField('Location', validators=[Optional(), Length(max=200)])
+    time_in = StringField('In', validators=[Optional(), Length(max=20)])
+    time_out = StringField('Out', validators=[Optional(), Length(max=20)])
+
+
+class AdminDamageReportForm(FlaskForm):
+    """Admin entry of storm damage relayed through a net (T-E-L format)."""
+    reporter_name = StringField('Station / Reporter', validators=[DataRequired(), Length(max=100)])
+    occurred_at = DateTimeLocalField('Time', format='%Y-%m-%dT%H:%M', validators=[Optional()])
+    damage_type = SelectField('Effect', validators=[DataRequired()])
+    location_text = StringField('Location', validators=[Optional(), Length(max=300)])
+    passed_via = SelectField('Passed Via', choices=PASSED_VIA, validators=[Optional()])
+    description = TextAreaField('Details', validators=[Optional(), Length(max=2000)])

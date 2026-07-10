@@ -1,0 +1,46 @@
+{% extends "admin/layout.html" %}
+{% block title %}Edit Entry — {{ commlog.incident_name }} — ARPSC Manager{% endblock %}
+
+{% block admin_content %}
+<h2 class="mb-3">Edit Comm Log Entry</h2>
+<p class="text-muted mb-3">{{ commlog.incident_name }}</p>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+      {{ form.hidden_tag() }}
+      <div class="mb-3">
+        {{ form.time.label(class="form-label") }}
+        {{ form.time(class="form-control", type="datetime-local") }}
+        {% for e in form.time.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-6">
+          {{ form.from_callsign.label(class="form-label") }}
+          {{ form.from_callsign(class="form-control") }}
+        </div>
+        <div class="col-6">
+          {{ form.from_msg_num.label(class="form-label") }}
+          {{ form.from_msg_num(class="form-control") }}
+        </div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-6">
+          {{ form.to_callsign.label(class="form-label") }}
+          {{ form.to_callsign(class="form-control") }}
+        </div>
+        <div class="col-6">
+          {{ form.to_msg_num.label(class="form-label") }}
+          {{ form.to_msg_num(class="form-control") }}
+        </div>
+      </div>
+      <div class="mb-3">
+        {{ form.message.label(class="form-label") }}
+        {{ form.message(class="form-control", rows=3) }}
+      </div>
+      <button type="submit" class="btn btn-primary">Save Changes</button>
+      <a href="{{ url_for('admin.commlog_entries', id=commlog.id) }}" class="btn btn-outline-secondary">Cancel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

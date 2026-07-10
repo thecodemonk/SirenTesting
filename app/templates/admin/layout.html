@@ -16,6 +16,10 @@
       <a href="{{ url_for('admin.commlogs') }}" class="list-group-item list-group-item-action {% if request.endpoint in ('admin.commlogs', 'admin.commlog_add', 'admin.commlog_edit', 'admin.commlog_entries') %}active{% endif %}">Comm Logs</a>
       <a href="{{ url_for('admin.taskbooks') }}" class="list-group-item list-group-item-action {% if request.endpoint in ('admin.taskbooks', 'admin.taskbook_add', 'admin.taskbook_edit', 'admin.taskbook_member') %}active{% endif %}">Task Books</a>
 
+      <h6 class="list-group-item list-group-item-light fw-bold small text-uppercase mt-2">Storm Center</h6>
+      <a href="{{ url_for('admin.storm_reports') }}" class="list-group-item list-group-item-action {% if request.endpoint in ('admin.storm_reports', 'admin.storm_report_action') %}active{% endif %}">Damage Reports</a>
+      <a href="{{ url_for('admin.storms') }}" class="list-group-item list-group-item-action {% if request.endpoint in ('admin.storms', 'admin.storm_add', 'admin.storm_edit') %}active{% endif %}">Storms</a>
+
       <h6 class="list-group-item list-group-item-light fw-bold small text-uppercase mt-2">Reports</h6>
       <a href="{{ url_for('admin.reports') }}" class="list-group-item list-group-item-action {% if request.endpoint == 'admin.reports' %}active{% endif %}">Monthly Report</a>
       <a href="{{ url_for('admin.members_inactive') }}" class="list-group-item list-group-item-action {% if request.endpoint == 'admin.members_inactive' %}active{% endif %}">Inactive Members</a>

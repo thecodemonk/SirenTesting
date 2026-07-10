@@ -8,7 +8,9 @@ from .extensions import db
 from .models import Test, Assignment
 
 MAX_PHOTO_SIZE = (1200, 1200)
+DAMAGE_PHOTO_SIZE = (2000, 2000)  # storm damage — keep more detail than siren photos
 THUMB_SIZE = (200, 200)
+_ALLOWED_IMAGE_FORMATS = ('JPEG', 'PNG', 'GIF', 'WEBP', 'MPO')
 Image.MAX_IMAGE_PIXELS = 25_000_000  # Guard against decompression bombs
 
 
@@ -115,14 +117,15 @@ def notify_admins(subject, body):
         current_app.logger.error(f'Failed to send admin notification: {e}')
 
 
-def save_test_photo(file_storage, test_id):
-    """Resize and save an uploaded test photo. Returns the filename."""
+def save_photo(file_storage, prefix, record_id, max_size=MAX_PHOTO_SIZE, quality=85):
+    """Resize and save an uploaded photo as {prefix}_{record_id}.jpg plus a
+    200px thumbnail. Returns the main filename. Shared by test and storm photos."""
     folder = current_app.config['MEDIA_FOLDER']
-    filename = f'test_{test_id}.jpg'
-    thumb_filename = f'test_{test_id}_thumb.jpg'
+    filename = f'{prefix}_{record_id}.jpg'
+    thumb_filename = f'{prefix}_{record_id}_thumb.jpg'
 
     img = Image.open(file_storage)
-    if img.format not in ('JPEG', 'PNG', 'GIF', 'WEBP', 'MPO'):
+    if img.format not in _ALLOWED_IMAGE_FORMATS:
         raise ValueError(f'Unsupported image format: {img.format}')
     # Auto-rotate based on EXIF orientation
     img = _fix_orientation(img)
@@ -131,8 +134,8 @@ def save_test_photo(file_storage, test_id):
         img = img.convert('RGB')
 
     # Save resized main image
-    img.thumbnail(MAX_PHOTO_SIZE, Image.LANCZOS)
-    img.save(os.path.join(folder, filename), 'JPEG', quality=85)
+    img.thumbnail(max_size, Image.LANCZOS)
+    img.save(os.path.join(folder, filename), 'JPEG', quality=quality)
 
     # Save thumbnail
     img.thumbnail(THUMB_SIZE, Image.LANCZOS)
@@ -141,13 +144,69 @@ def save_test_photo(file_storage, test_id):
     return filename
 
 
-def delete_test_photo(filename):
-    """Delete a test photo and its thumbnail from disk."""
+def save_test_photo(file_storage, test_id):
+    """Resize and save an uploaded test photo. Returns the filename."""
+    return save_photo(file_storage, 'test', test_id)
+
+
+def save_damage_photo(file_storage, report_id):
+    """Save a storm-damage photo (higher resolution to keep detail) and pull
+    GPS from EXIF if present. Returns (filename, gps) where gps is a
+    "lat,lng" string or None."""
+    gps = None
+    try:
+        # Read EXIF GPS from the original bytes before we resize/re-encode
+        probe = Image.open(file_storage)
+        gps = extract_exif_gps(probe)
+        file_storage.stream.seek(0)
+    except Exception:
+        file_storage.stream.seek(0)
+    filename = save_photo(file_storage, 'storm', report_id,
+                          max_size=DAMAGE_PHOTO_SIZE, quality=88)
+    return filename, gps
+
+
+def delete_photo(filename):
+    """Delete a photo and its thumbnail from disk."""
     folder = current_app.config['MEDIA_FOLDER']
     for f in (filename, filename.replace('.jpg', '_thumb.jpg')):
         path = os.path.join(folder, f)
         if os.path.exists(path):
             os.unlink(path)
+
+
+# Kept for existing call sites; delegates to the generic helper.
+delete_test_photo = delete_photo
+
+
+def extract_exif_gps(img):
+    """Return a "lat,lng" string from an image's EXIF GPS tags, or None.
+    Coordinates are rounded to 5 decimals (~1m), matching the NWS precision cap."""
+    try:
+        from PIL import ExifTags
+        exif = img._getexif()
+        if not exif:
+            return None
+        gps_tag = next((t for t, name in ExifTags.TAGS.items() if name == 'GPSInfo'), None)
+        gps_info = exif.get(gps_tag) if gps_tag is not None else None
+        if not gps_info:
+            return None
+        gps = {ExifTags.GPSTAGS.get(k, k): v for k, v in gps_info.items()}
+
+        def _to_deg(value, ref):
+            d, m, s = (float(x) for x in value)
+            deg = d + m / 60.0 + s / 3600.0
+            if ref in ('S', 'W'):
+                deg = -deg
+            return deg
+
+        if 'GPSLatitude' in gps and 'GPSLongitude' in gps:
+            lat = _to_deg(gps['GPSLatitude'], gps.get('GPSLatitudeRef', 'N'))
+            lng = _to_deg(gps['GPSLongitude'], gps.get('GPSLongitudeRef', 'E'))
+            return f'{round(lat, 5)},{round(lng, 5)}'
+    except Exception:
+        return None
+    return None
 
 
 def _fix_orientation(img):

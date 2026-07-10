@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Storm Center — ARPSC Manager{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/leaflet.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1>Storm Center</h1>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('storm.history') }}" class="btn btn-outline-secondary">Past Storms</a>
+    <a href="{{ url_for('storm.report') }}" class="btn btn-danger">Report Storm Damage</a>
+  </div>
+</div>
+
+<h2 class="h5 text-muted mb-3">Active NWS Alerts</h2>
+{% if active_alerts %}
+<div class="row row-cols-1 row-cols-md-2 g-3 mb-4">
+  {% for a in active_alerts %}
+  <div class="col">
+    <div class="card border-{{ a.severity | alert_class }} h-100">
+      <div class="card-header bg-{{ a.severity | alert_class }} {% if a.severity in ('Extreme', 'Severe') %}text-white{% endif %} d-flex justify-content-between">
+        <strong>{{ a.event }}</strong>
+        <span>{{ a.severity }}</span>
+      </div>
+      <div class="card-body">
+        {% if a.headline %}<p class="card-text">{{ a.headline }}</p>{% endif %}
+        <p class="card-text"><small class="text-muted">{{ a.area_desc }}</small></p>
+        {% if a.instruction %}<p class="card-text small">{{ a.instruction }}</p>{% endif %}
+      </div>
+      {% if a.expires %}
+      <div class="card-footer text-muted small">
+        Expires <time class="js-localtime" datetime="{{ a.expires }}">{{ a.expires }}</time>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-success mb-4">No active National Weather Service alerts for the area.</div>
+{% endif %}
+
+<h2 class="h5 text-muted mb-3">Damage Map</h2>
+<div id="storm-map" style="height: 420px;" class="rounded border mb-4"></div>
+<script type="application/json" id="storm-map-data">{{ map_data | tojson }}</script>
+
+<h2 class="h5 text-muted mb-3">Recent Damage Reports</h2>
+{% if reports %}
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
+  {% for r in reports %}
+  <div class="col">
+    <div class="card h-100">
+      {% if r.photo_filename %}
+      <img src="{{ url_for('media_photo', filename=r.photo_filename.replace('.jpg', '_thumb.jpg')) }}"
+           class="card-img-top" alt="Damage photo" style="object-fit: cover; height: 160px;">
+      {% endif %}
+      <div class="card-body">
+        <span class="badge bg-danger mb-1">{{ r.damage_type }}</span>
+        <p class="card-text small mb-1">{{ r.description or '' }}</p>
+        <p class="card-text"><small class="text-muted">
+          {{ r.location_text or r.coordinates or '' }}
+        </small></p>
+      </div>
+      <div class="card-footer text-muted small">
+        {{ r.occurred_at | format_date('%b %d, %Y %I:%M %p') }} · {{ r.reporter_name }}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-secondary">No damage reports yet.</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/leaflet.js') }}"></script>
+<script src="{{ url_for('static', filename='js/storm-map.js') }}"></script>
+<script>
+  initStormMap('storm-map', JSON.parse(document.getElementById('storm-map-data').textContent));
+</script>
+{% endblock %}

@@ -38,6 +38,15 @@
       <a href="{{ url_for('admin.export_csv', table='comm_log_entries') }}" class="btn btn-outline-warning btn-sm">Comm Log Entries</a>
     </div>
 
+    <h6 class="text-muted">Storm Center</h6>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <a href="{{ url_for('admin.export_csv', table='storms') }}" class="btn btn-outline-danger btn-sm">Storms</a>
+      <a href="{{ url_for('admin.export_csv', table='damage_reports') }}" class="btn btn-outline-danger btn-sm">Damage / Weather Reports</a>
+      <a href="{{ url_for('admin.export_csv', table='storm_watch_warnings') }}" class="btn btn-outline-danger btn-sm">Watches &amp; Warnings</a>
+      <a href="{{ url_for('admin.export_csv', table='storm_net_conditions') }}" class="btn btn-outline-danger btn-sm">Net Conditions</a>
+      <a href="{{ url_for('admin.export_csv', table='storm_net_stations') }}" class="btn btn-outline-danger btn-sm">Participating Stations</a>
+    </div>
+
     <h6 class="text-muted">Configuration</h6>
     <div class="d-flex flex-wrap gap-2">
       <a href="{{ url_for('admin.export_csv', table='equipment_types') }}" class="btn btn-outline-secondary btn-sm">Equipment Types</a>
@@ -77,6 +86,12 @@
       </li>
       <li class="nav-item">
         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#import-attendance">Attendance</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#import-storms">Storms</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#import-damage-reports">Damage Reports</button>
       </li>
     </ul>
 
@@ -183,6 +198,30 @@
         <p>Columns: <code>event_date, event_type, member_email, member_name, member_callsign, hours</code><br>
         Event matched by date + type. Member matched by email, then callsign, then name. Duplicates skipped.</p>
         <form method="post" action="{{ url_for('admin.import_csv', table='attendance') }}" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3">
+            <input type="file" name="file" class="form-control" accept=".csv" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Upload &amp; Preview</button>
+        </form>
+      </div>
+
+      <div class="tab-pane fade" id="import-storms">
+        <p>Columns: <code>name, event_date, nws_event_type, status, summary, center_coordinates, net_control_name, net_control_callsign, freq_main, freq_north, freq_south, freq_dtx</code><br>
+        Matched (upsert) by <code>name</code> + <code>event_date</code>.</p>
+        <form method="post" action="{{ url_for('admin.import_csv', table='storms') }}" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3">
+            <input type="file" name="file" class="form-control" accept=".csv" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Upload &amp; Preview</button>
+        </form>
+      </div>
+
+      <div class="tab-pane fade" id="import-damage-reports">
+        <p>Columns: <code>storm_name, storm_date, reporter_name, occurred_at, damage_type, description, location_text, coordinates, passed_via, status, source</code><br>
+        Linked to a storm by <code>storm_name</code> + <code>storm_date</code> (blank = unassigned). Rows are always added (not de-duplicated); defaults: status=APPROVED, source=net.</p>
+        <form method="post" action="{{ url_for('admin.import_csv', table='damage_reports') }}" enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="mb-3">
             <input type="file" name="file" class="form-control" accept=".csv" required>

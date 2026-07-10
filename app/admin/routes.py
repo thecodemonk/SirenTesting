@@ -3,7 +3,7 @@ import io
 import os
 import re
 import tempfile
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from flask import (
     abort, render_template, request, flash, redirect, url_for,
@@ -15,7 +15,10 @@ from .forms import (
     SirenForm, TestForm, AssignmentForm,
     EventForm, CommLogForm, CommLogEntryForm,
     MemberAdminForm, TaskBookLevelForm, TaskBookTaskForm,
+    StormForm, WatchWarningForm, NetConditionForm, NetStationForm,
+    AdminDamageReportForm,
 )
+from ..storm.forms import DAMAGE_TYPES
 from . import admin_bp
 from ..extensions import db
 from ..models import (
@@ -24,8 +27,12 @@ from ..models import (
     Event, EventAttendance,
     CommLog, CommLogEntry,
     TaskBookLevel, TaskBookTask, MemberTaskBookProgress,
+    Storm, DamageReport,
+    StormWatchWarning, StormNetCondition, StormNetStation,
 )
-from ..utils import generate_first_mondays, save_test_photo, delete_test_photo
+from ..utils import (
+    generate_first_mondays, save_test_photo, delete_test_photo, delete_photo,
+)
 
 
 # --- Sirens ---
@@ -968,6 +975,25 @@ def commlog_entries(id):
     return render_template('admin/commlog_entries.html', commlog=log, entries=entries, form=form)
 
 
+@admin_bp.route('/commlogs/<int:id>/entries/<int:entry_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def commlog_entry_edit(id, entry_id):
+    log = db.session.get(CommLog, id) or abort(404)
+    entry = CommLogEntry.query.filter_by(id=entry_id, comm_log_id=id).first_or_404()
+    form = CommLogEntryForm(obj=entry)
+    if form.validate_on_submit():
+        entry.time = form.time.data
+        entry.from_callsign = form.from_callsign.data.strip() if form.from_callsign.data else None
+        entry.from_msg_num = form.from_msg_num.data.strip() if form.from_msg_num.data else None
+        entry.to_callsign = form.to_callsign.data.strip() if form.to_callsign.data else None
+        entry.to_msg_num = form.to_msg_num.data.strip() if form.to_msg_num.data else None
+        entry.message = form.message.data.strip() if form.message.data else None
+        db.session.commit()
+        flash('Entry updated.', 'success')
+        return redirect(url_for('admin.commlog_entries', id=log.id))
+    return render_template('admin/commlog_entry_edit.html', commlog=log, entry=entry, form=form)
+
+
 @admin_bp.route('/commlogs/<int:id>/entries/<int:entry_id>/delete', methods=['POST'])
 @admin_required
 def commlog_entry_delete(id, entry_id):
@@ -1467,13 +1493,67 @@ def export_csv(table):
     elif table == 'training_types':
         columns = ['name', 'has_expiration', 'expiration_years', 'display_order']
         rows = TrainingType.query.order_by(TrainingType.display_order).all()
+    elif table == 'storms':
+        columns = ['name', 'event_date', 'nws_event_type', 'status', 'summary',
+                    'center_coordinates', 'net_control_name', 'net_control_callsign',
+                    'freq_main', 'freq_north', 'freq_south', 'freq_dtx']
+        rows = Storm.query.order_by(Storm.event_date.desc()).all()
+    elif table == 'damage_reports':
+        columns = ['storm_name', 'storm_date', 'reporter_name', 'occurred_at',
+                    'damage_type', 'description', 'location_text', 'coordinates',
+                    'passed_via', 'status', 'source']
+        rows = DamageReport.query.order_by(DamageReport.occurred_at.desc()).all()
+        def row_dict(r):
+            return {
+                'storm_name': r.storm.name if r.storm else '',
+                'storm_date': r.storm.event_date if r.storm else '',
+                'reporter_name': r.reporter_name, 'occurred_at': r.occurred_at,
+                'damage_type': r.damage_type or '', 'description': r.description or '',
+                'location_text': r.location_text or '', 'coordinates': r.coordinates or '',
+                'passed_via': r.passed_via or '', 'status': r.status or '',
+                'source': r.source or '',
+            }
+    elif table == 'storm_watch_warnings':
+        columns = ['storm_name', 'storm_date', 'tsm_watch', 'tsm_warning',
+                    'tdo_watch', 'tdo_warning', 'county', 'start_time', 'end_time']
+        rows = StormWatchWarning.query.join(Storm).order_by(Storm.event_date.desc()).all()
+        def row_dict(w):
+            return {
+                'storm_name': w.storm.name, 'storm_date': w.storm.event_date,
+                'tsm_watch': w.tsm_watch, 'tsm_warning': w.tsm_warning,
+                'tdo_watch': w.tdo_watch, 'tdo_warning': w.tdo_warning,
+                'county': w.county or '', 'start_time': w.start_time or '',
+                'end_time': w.end_time or '',
+            }
+    elif table == 'storm_net_conditions':
+        columns = ['storm_name', 'storm_date', 'condition', 'reason', 'time']
+        rows = StormNetCondition.query.join(Storm).order_by(Storm.event_date.desc()).all()
+        def row_dict(c):
+            return {
+                'storm_name': c.storm.name, 'storm_date': c.storm.event_date,
+                'condition': c.condition or '', 'reason': c.reason or '',
+                'time': c.time or '',
+            }
+    elif table == 'storm_net_stations':
+        columns = ['storm_name', 'storm_date', 'role', 'station', 'location',
+                    'time_in', 'time_out']
+        rows = StormNetStation.query.join(Storm).order_by(Storm.event_date.desc()).all()
+        def row_dict(s):
+            return {
+                'storm_name': s.storm.name, 'storm_date': s.storm.event_date,
+                'role': s.role or '', 'station': s.station or '',
+                'location': s.location or '', 'time_in': s.time_in or '',
+                'time_out': s.time_out or '',
+            }
     else:
         flash('Unknown table.', 'danger')
         return redirect(url_for('admin.import_export'))
 
     # Tables that use custom row_dict
     custom_tables = ('tests', 'assignments', 'attendance', 'member_training',
-                     'member_equipment', 'comm_log_entries', 'maintenance_log')
+                     'member_equipment', 'comm_log_entries', 'maintenance_log',
+                     'damage_reports', 'storm_watch_warnings', 'storm_net_conditions',
+                     'storm_net_stations')
 
     def _sanitize_row(d):
         return {k: _sanitize_csv_value(v) for k, v in d.items()}
@@ -1516,7 +1596,7 @@ def import_export():
 def import_csv(table):
     allowed = ('sirens', 'tests', 'assignments', 'schedules',
                'members', 'events', 'member_training', 'attendance',
-               'maintenance_log')
+               'maintenance_log', 'storms', 'damage_reports')
     if table not in allowed:
         flash('Unknown import type.', 'danger')
         return redirect(url_for('admin.import_export'))
@@ -1898,6 +1978,74 @@ def import_confirm():
                 db.session.add(entry)
                 added += 1
 
+        elif table == 'storms':
+            for row in reader:
+                name = (row.get('name') or '').strip()
+                try:
+                    ev_date = date.fromisoformat((row.get('event_date') or '').strip())
+                except ValueError:
+                    skipped += 1
+                    continue
+                if not name:
+                    skipped += 1
+                    continue
+                storm = Storm.query.filter_by(name=name, event_date=ev_date).first()
+                fields = dict(
+                    nws_event_type=(row.get('nws_event_type') or '').strip() or None,
+                    status=(row.get('status') or '').strip() or 'ACTIVE',
+                    summary=(row.get('summary') or '').strip() or None,
+                    center_coordinates=(row.get('center_coordinates') or '').strip() or None,
+                    net_control_name=(row.get('net_control_name') or '').strip() or None,
+                    net_control_callsign=(row.get('net_control_callsign') or '').strip() or None,
+                    freq_main=(row.get('freq_main') or '').strip() or None,
+                    freq_north=(row.get('freq_north') or '').strip() or None,
+                    freq_south=(row.get('freq_south') or '').strip() or None,
+                    freq_dtx=(row.get('freq_dtx') or '').strip() or None,
+                )
+                if storm:
+                    for k, v in fields.items():
+                        setattr(storm, k, v)
+                    updated += 1
+                else:
+                    db.session.add(Storm(name=name, event_date=ev_date, **fields))
+                    added += 1
+
+        elif table == 'damage_reports':
+            for row in reader:
+                reporter = (row.get('reporter_name') or '').strip()
+                if not reporter:
+                    skipped += 1
+                    continue
+                storm = None
+                sname = (row.get('storm_name') or '').strip()
+                if sname:
+                    q = Storm.query.filter_by(name=sname)
+                    try:
+                        sdate = date.fromisoformat((row.get('storm_date') or '').strip())
+                        q = q.filter_by(event_date=sdate)
+                    except ValueError:
+                        pass
+                    storm = q.first()
+                occurred = None
+                if (row.get('occurred_at') or '').strip():
+                    try:
+                        occurred = datetime.fromisoformat(row['occurred_at'].strip())
+                    except ValueError:
+                        pass
+                db.session.add(DamageReport(
+                    storm_id=storm.id if storm else None,
+                    reporter_name=reporter,
+                    occurred_at=occurred or datetime.now(),
+                    damage_type=(row.get('damage_type') or '').strip() or None,
+                    description=(row.get('description') or '').strip() or None,
+                    location_text=(row.get('location_text') or '').strip() or None,
+                    coordinates=(row.get('coordinates') or '').strip() or None,
+                    passed_via=(row.get('passed_via') or '').strip() or None,
+                    status=(row.get('status') or '').strip() or 'APPROVED',
+                    source=(row.get('source') or '').strip() or 'net',
+                ))
+                added += 1
+
         db.session.commit()
 
     os.unlink(tmp_path)
@@ -1910,3 +2058,386 @@ def import_confirm():
         parts.append(f'{skipped} skipped')
     flash(f'Import complete: {", ".join(parts)}.', 'success')
     return redirect(url_for('admin.import_export'))
+
+
+# --- Storm Center: damage report moderation ---
+
+@admin_bp.route('/storm/reports')
+@admin_required
+def storm_reports():
+    status = request.args.get('status', 'PENDING')
+    query = DamageReport.query
+    if status in ('PENDING', 'APPROVED', 'REJECTED'):
+        query = query.filter_by(status=status)
+    reports = query.order_by(DamageReport.created_at.desc()).all()
+    pending_count = DamageReport.query.filter_by(status='PENDING').count()
+    storms = Storm.query.order_by(Storm.event_date.desc()).all()
+    return render_template('admin/storm_reports.html', reports=reports,
+                           status=status, pending_count=pending_count, storms=storms)
+
+
+@admin_bp.route('/storm/reports/<int:id>/action', methods=['POST'])
+@admin_required
+def storm_report_action(id):
+    report = db.session.get(DamageReport, id) or abort(404)
+    action = request.form.get('action')
+    if action == 'approve':
+        report.status = 'APPROVED'
+        db.session.commit()
+        flash('Report approved — it will appear on the public map.', 'success')
+    elif action == 'reject':
+        report.status = 'REJECTED'
+        db.session.commit()
+        flash('Report rejected — it stays hidden from the public.', 'info')
+    elif action == 'assign':
+        storm_id = request.form.get('storm_id', type=int)
+        report.storm_id = storm_id or None
+        db.session.commit()
+        flash('Report reassigned.', 'success')
+    elif action == 'delete':
+        if report.photo_filename:
+            delete_photo(report.photo_filename)
+        db.session.delete(report)
+        db.session.commit()
+        flash('Report deleted.', 'info')
+    return redirect(url_for('admin.storm_reports', status=request.form.get('return_status', 'PENDING')))
+
+
+# --- Storm Center: storm records ---
+
+def _storm_event_choices():
+    """(0, '— none —') plus SKYWARN-category events, newest first."""
+    events = (
+        Event.query.filter_by(category='SKYWARN')
+        .order_by(Event.date.desc())
+        .all()
+    )
+    return [(0, '— none —')] + [
+        (e.id, f'{e.date.strftime("%b %d, %Y")} — {e.event_type}') for e in events
+    ]
+
+
+@admin_bp.route('/storm/storms')
+@admin_required
+def storms():
+    all_storms = Storm.query.order_by(Storm.event_date.desc()).all()
+    return render_template('admin/storms.html', storms=all_storms)
+
+
+@admin_bp.route('/storm/storms/add', methods=['GET', 'POST'])
+@admin_required
+def storm_add():
+    form = StormForm()
+    form.event_id.choices = _storm_event_choices()
+    if form.validate_on_submit():
+        storm = Storm(
+            name=form.name.data.strip(),
+            event_date=form.event_date.data,
+            nws_event_type=form.nws_event_type.data or None,
+            status=form.status.data,
+            center_coordinates=form.center_coordinates.data or None,
+            event_id=form.event_id.data or None,
+            summary=form.summary.data or None,
+            net_control_name=form.net_control_name.data or None,
+            net_control_callsign=form.net_control_callsign.data or None,
+            freq_main=form.freq_main.data or None,
+            freq_north=form.freq_north.data or None,
+            freq_south=form.freq_south.data or None,
+            freq_dtx=form.freq_dtx.data or None,
+        )
+        db.session.add(storm)
+        db.session.commit()
+        flash('Storm created.', 'success')
+        return redirect(url_for('admin.storms'))
+    return render_template('admin/storm_form.html', form=form, storm=None)
+
+
+@admin_bp.route('/storm/storms/<int:id>/edit', methods=['GET', 'POST'])
+@admin_required
+def storm_edit(id):
+    storm = db.session.get(Storm, id) or abort(404)
+    form = StormForm(obj=storm)
+    form.event_id.choices = _storm_event_choices()
+    if request.method == 'GET':
+        form.event_id.data = storm.event_id or 0
+    if form.validate_on_submit():
+        storm.name = form.name.data.strip()
+        storm.event_date = form.event_date.data
+        storm.nws_event_type = form.nws_event_type.data or None
+        storm.status = form.status.data
+        storm.center_coordinates = form.center_coordinates.data or None
+        storm.event_id = form.event_id.data or None
+        storm.summary = form.summary.data or None
+        storm.net_control_name = form.net_control_name.data or None
+        storm.net_control_callsign = form.net_control_callsign.data or None
+        storm.freq_main = form.freq_main.data or None
+        storm.freq_north = form.freq_north.data or None
+        storm.freq_south = form.freq_south.data or None
+        storm.freq_dtx = form.freq_dtx.data or None
+        db.session.commit()
+        flash('Storm updated.', 'success')
+        return redirect(url_for('admin.storms'))
+    net_logs = storm.event.comm_logs if storm.event else []
+    return render_template('admin/storm_form.html', form=form, storm=storm, net_logs=net_logs)
+
+
+@admin_bp.route('/storm/storms/<int:id>/net-log', methods=['POST'])
+@admin_required
+def storm_start_net_log(id):
+    """Create a SkyWarn-net comm log for this storm, reusing the ICS-309 flow.
+    Ensures the storm has a linked SKYWARN Event so the activation also flows to
+    the monthly state report, then opens the comm-log entry screen."""
+    storm = db.session.get(Storm, id) or abort(404)
+
+    # Ensure the storm has a SKYWARN event to attach the log (and reporting) to
+    if not storm.event_id:
+        event = Event(
+            date=storm.event_date,
+            event_type='SKYWARN Activation',
+            category='SKYWARN',
+            description=storm.name,
+            duration_hours=1.0,
+            created_by_id=current_user.id,
+        )
+        db.session.add(event)
+        db.session.commit()
+        storm.event_id = event.id
+        db.session.commit()
+
+    start = datetime.combine(storm.event_date, time(0, 0))
+    log = CommLog(
+        incident_name=storm.name,
+        op_period_start=start,
+        op_period_end=start,
+        net_name_or_position='SKYWARN Net',
+        operator_name=current_user.display_name or 'ARPSC',
+        event_id=storm.event_id,
+    )
+    db.session.add(log)
+    db.session.commit()
+    flash('SkyWarn net log started — add your entries below.', 'success')
+    return redirect(url_for('admin.commlog_entries', id=log.id))
+
+
+@admin_bp.route('/storm/storms/<int:id>/delete', methods=['POST'])
+@admin_required
+def storm_delete(id):
+    storm = db.session.get(Storm, id) or abort(404)
+    # Keep the reports (and their photos) — just detach them from this storm.
+    DamageReport.query.filter_by(storm_id=storm.id).update({'storm_id': None})
+    db.session.delete(storm)
+    db.session.commit()
+    flash('Storm deleted; its reports were kept and unassigned.', 'info')
+    return redirect(url_for('admin.storms'))
+
+
+# --- Storm Center: SkyWarn Work Sheet ---
+
+@admin_bp.route('/storm/storms/<int:id>/worksheet')
+@admin_required
+def storm_worksheet(id):
+    storm = db.session.get(Storm, id) or abort(404)
+    damage_form = AdminDamageReportForm()
+    damage_form.damage_type.choices = DAMAGE_TYPES
+    return render_template(
+        'admin/storm_worksheet.html', storm=storm,
+        watch_form=WatchWarningForm(), condition_form=NetConditionForm(),
+        station_form=NetStationForm(), damage_form=damage_form,
+    )
+
+
+@admin_bp.route('/storm/storms/<int:id>/worksheet/watch', methods=['POST'])
+@admin_required
+def storm_worksheet_watch_add(id):
+    storm = db.session.get(Storm, id) or abort(404)
+    form = WatchWarningForm()
+    if form.validate_on_submit():
+        db.session.add(StormWatchWarning(
+            storm_id=storm.id,
+            tsm_watch=form.tsm_watch.data, tsm_warning=form.tsm_warning.data,
+            tdo_watch=form.tdo_watch.data, tdo_warning=form.tdo_warning.data,
+            county=form.county.data or None,
+            start_time=form.start_time.data or None,
+            end_time=form.end_time.data or None,
+        ))
+        db.session.commit()
+        flash('Watch/warning row added.', 'success')
+    return redirect(url_for('admin.storm_worksheet', id=storm.id))
+
+
+@admin_bp.route('/storm/storms/<int:id>/worksheet/watch/<int:row_id>/update', methods=['POST'])
+@admin_required
+def storm_worksheet_watch_update(id, row_id):
+    row = StormWatchWarning.query.filter_by(id=row_id, storm_id=id).first_or_404()
+    form = WatchWarningForm()
+    if form.validate_on_submit():
+        row.tsm_watch = form.tsm_watch.data
+        row.tsm_warning = form.tsm_warning.data
+        row.tdo_watch = form.tdo_watch.data
+        row.tdo_warning = form.tdo_warning.data
+        row.county = form.county.data or None
+        row.start_time = form.start_time.data or None
+        row.end_time = form.end_time.data or None
+        db.session.commit()
+        flash('Watch/warning updated.', 'success')
+    return redirect(url_for('admin.storm_worksheet', id=id))
+
+
+@admin_bp.route('/storm/storms/<int:id>/worksheet/watch/<int:row_id>/delete', methods=['POST'])
+@admin_required
+def storm_worksheet_watch_delete(id, row_id):
+    row = StormWatchWarning.query.filter_by(id=row_id, storm_id=id).first_or_404()
+    db.session.delete(row)
+    db.session.commit()
+    return redirect(url_for('admin.storm_worksheet', id=id))
+
+
+@admin_bp.route('/storm/storms/<int:id>/worksheet/condition', methods=['POST'])
+@admin_required
+def storm_worksheet_condition_add(id):
+    storm = db.session.get(Storm, id) or abort(404)
+    form = NetConditionForm()
+    if form.validate_on_submit():
+        db.session.add(StormNetCondition(
+            storm_id=storm.id, condition=form.condition.data,
+            reason=form.reason.data or None, time=form.time.data or None,
+        ))
+        db.session.commit()
+        flash('Net condition change added.', 'success')
+    return redirect(url_for('admin.storm_worksheet', id=storm.id))
+
+
+@admin_bp.route('/storm/storms/<int:id>/worksheet/condition/<int:row_id>/update', methods=['POST'])
+@admin_required
+def storm_worksheet_condition_update(id, row_id):
+    row = StormNetCondition.query.filter_by(id=row_id, storm_id=id).first_or_404()
+    form = NetConditionForm()
+    if form.validate_on_submit():
+        row.condition = form.condition.data
+        row.reason = form.reason.data or None
+        row.time = form.time.data or None
+        db.session.commit()
+        flash('Net condition updated.', 'success')
+    return redirect(url_for('admin.storm_worksheet', id=id))
+
+
+@admin_bp.route('/storm/storms/<int:id>/worksheet/condition/<int:row_id>/delete', methods=['POST'])
+@admin_required
+def storm_worksheet_condition_delete(id, row_id):
+    row = StormNetCondition.query.filter_by(id=row_id, storm_id=id).first_or_404()
+    db.session.delete(row)
+    db.session.commit()
+    return redirect(url_for('admin.storm_worksheet', id=id))
+
+
+@admin_bp.route('/storm/storms/<int:id>/worksheet/station', methods=['POST'])
+@admin_required
+def storm_worksheet_station_add(id):
+    storm = db.session.get(Storm, id) or abort(404)
+    form = NetStationForm()
+    if form.validate_on_submit():
+        db.session.add(StormNetStation(
+            storm_id=storm.id, role=form.role.data,
+            station=form.station.data.strip(), location=form.location.data or None,
+            time_in=form.time_in.data or None, time_out=form.time_out.data or None,
+        ))
+        db.session.commit()
+        flash('Participating station added.', 'success')
+    return redirect(url_for('admin.storm_worksheet', id=storm.id))
+
+
+@admin_bp.route('/storm/storms/<int:id>/worksheet/station/<int:row_id>/update', methods=['POST'])
+@admin_required
+def storm_worksheet_station_update(id, row_id):
+    row = StormNetStation.query.filter_by(id=row_id, storm_id=id).first_or_404()
+    form = NetStationForm()
+    if form.validate_on_submit():
+        row.role = form.role.data
+        row.station = form.station.data.strip()
+        row.location = form.location.data or None
+        row.time_in = form.time_in.data or None
+        row.time_out = form.time_out.data or None
+        db.session.commit()
+        flash('Participating station updated.', 'success')
+    return redirect(url_for('admin.storm_worksheet', id=id))
+
+
+@admin_bp.route('/storm/storms/<int:id>/worksheet/station/<int:row_id>/delete', methods=['POST'])
+@admin_required
+def storm_worksheet_station_delete(id, row_id):
+    row = StormNetStation.query.filter_by(id=row_id, storm_id=id).first_or_404()
+    db.session.delete(row)
+    db.session.commit()
+    return redirect(url_for('admin.storm_worksheet', id=id))
+
+
+@admin_bp.route('/storm/storms/<int:id>/worksheet/damage', methods=['POST'])
+@admin_required
+def storm_worksheet_damage_add(id):
+    """Admin logs a storm-damage (weather) report relayed through the net."""
+    storm = db.session.get(Storm, id) or abort(404)
+    form = AdminDamageReportForm()
+    form.damage_type.choices = DAMAGE_TYPES
+    if form.validate_on_submit():
+        db.session.add(DamageReport(
+            storm_id=storm.id,
+            reporter_name=form.reporter_name.data.strip(),
+            occurred_at=form.occurred_at.data or datetime.now(),
+            damage_type=form.damage_type.data,
+            location_text=form.location_text.data or None,
+            passed_via=form.passed_via.data or None,
+            description=form.description.data or None,
+            status='APPROVED',
+            source='net',
+        ))
+        db.session.commit()
+        flash('Weather report logged.', 'success')
+    else:
+        flash('Could not log report — check the required fields.', 'danger')
+    return redirect(url_for('admin.storm_worksheet', id=storm.id))
+
+
+@admin_bp.route('/storm/storms/<int:id>/worksheet/damage/<int:row_id>/update', methods=['POST'])
+@admin_required
+def storm_worksheet_damage_update(id, row_id):
+    report = DamageReport.query.filter_by(id=row_id, storm_id=id).first_or_404()
+    form = AdminDamageReportForm()
+    form.damage_type.choices = DAMAGE_TYPES
+    if form.validate_on_submit():
+        report.reporter_name = form.reporter_name.data.strip()
+        report.occurred_at = form.occurred_at.data or report.occurred_at
+        report.damage_type = form.damage_type.data
+        report.location_text = form.location_text.data or None
+        report.passed_via = form.passed_via.data or None
+        report.description = form.description.data or None
+        db.session.commit()
+        flash('Weather report updated.', 'success')
+    else:
+        flash('Could not update report — check the required fields.', 'danger')
+    return redirect(url_for('admin.storm_worksheet', id=id))
+
+
+@admin_bp.route('/storm/storms/<int:id>/worksheet/damage/<int:row_id>/delete', methods=['POST'])
+@admin_required
+def storm_worksheet_damage_delete(id, row_id):
+    report = DamageReport.query.filter_by(id=row_id, storm_id=id).first_or_404()
+    if report.photo_filename:
+        delete_photo(report.photo_filename)
+    db.session.delete(report)
+    db.session.commit()
+    flash('Weather report deleted.', 'info')
+    return redirect(url_for('admin.storm_worksheet', id=id))
+
+
+@admin_bp.route('/storm/storms/<int:id>/worksheet/pdf')
+@admin_required
+def storm_worksheet_pdf(id):
+    storm = db.session.get(Storm, id) or abort(404)
+    from ..pdf import generate_skywarn_worksheet_pdf
+    pdf_buffer = generate_skywarn_worksheet_pdf(storm)
+    safe_name = re.sub(r'[^\w\s-]', '', storm.name).strip().replace(' ', '_') or 'storm'
+    return Response(
+        pdf_buffer.getvalue(),
+        mimetype='application/pdf',
+        headers={'Content-Disposition': f'inline; filename="SkyWarn_Worksheet_{safe_name}.pdf"'},
+    )

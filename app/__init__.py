@@ -32,17 +32,28 @@ def create_app(config_name=None):
     from .public import public_bp
     from .admin import admin_bp
     from .members import members_bp
+    from .storm import storm_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(public_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(members_bp)
+    app.register_blueprint(storm_bp)
 
     os.makedirs(app.config['MEDIA_FOLDER'], exist_ok=True)
 
+    @app.context_processor
+    def inject_active_alerts():
+        # Cached in nws.py; failures return the last good payload (or []).
+        from .nws import get_active_alerts
+        try:
+            return {'active_alerts': get_active_alerts()}
+        except Exception:
+            return {'active_alerts': []}
+
     @app.route('/media/photos/<filename>')
     def media_photo(filename):
-        if not re.match(r'^test_\d+(_thumb)?\.jpg$', filename):
+        if not re.match(r'^(test|storm)_\d+(_thumb)?\.jpg$', filename):
             abort(404)
         return send_from_directory(app.config['MEDIA_FOLDER'], filename)
 

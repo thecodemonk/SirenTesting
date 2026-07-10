@@ -51,9 +51,20 @@ def training_status_badge(training):
     return 'bg-success'
 
 
+def alert_class(severity):
+    """Map an NWS alert severity to a Bootstrap contextual class."""
+    return {
+        'Extreme': 'danger',
+        'Severe': 'danger',
+        'Moderate': 'warning',
+        'Minor': 'info',
+    }.get(severity, 'secondary')
+
+
 def register_filters(app):
     app.jinja_env.filters['status_class'] = status_class
     app.jinja_env.filters['status_badge'] = status_badge
     app.jinja_env.filters['format_date'] = format_date
     app.jinja_env.filters['yesno'] = yesno
     app.jinja_env.filters['training_status_badge'] = training_status_badge
+    app.jinja_env.filters['alert_class'] = alert_class

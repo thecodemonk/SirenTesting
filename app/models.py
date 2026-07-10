@@ -391,6 +391,133 @@ class CommLogEntry(db.Model):
         return f'<CommLogEntry {self.time} {self.from_callsign}>'
 
 
+# --- Storm Center / SkyWarn ---
+
+class Storm(db.Model):
+    __tablename__ = 'storms'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.Text, nullable=False)
+    event_date = db.Column(db.Date, nullable=False, index=True)
+    nws_event_type = db.Column(db.Text)  # e.g. "Tornado Warning" (optional)
+    summary = db.Column(db.Text)
+    status = db.Column(db.Text, default='ACTIVE')  # ACTIVE / ARCHIVED
+    center_coordinates = db.Column(db.Text)  # lat,lng — default map center
+    # Optional link to an Event so SkyWarn activations flow to the state report
+    event_id = db.Column(db.Integer, db.ForeignKey('events.id'), nullable=True)
+    # SkyWarn Work Sheet header (net control + frequencies)
+    net_control_name = db.Column(db.Text)
+    net_control_callsign = db.Column(db.Text)
+    freq_main = db.Column(db.Text, default='146.720 MHz - 186Hz PL')
+    freq_north = db.Column(db.Text)
+    freq_south = db.Column(db.Text)
+    freq_dtx = db.Column(db.Text, default='Spotter line - 1 (800)808-0006')
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+
+    # Chronological by report time so the worksheet reads top-to-bottom in order
+    reports = db.relationship('DamageReport', backref='storm', lazy='select',
+                              order_by='DamageReport.occurred_at')
+    event = db.relationship('Event', backref='storms')
+    # SkyWarn Work Sheet repeating sections (deleted with the storm), ordered by
+    # their clock-time field so they stay in chronological order as they're filled
+    watch_warnings = db.relationship('StormWatchWarning', backref='storm', lazy='select',
+                                     order_by='StormWatchWarning.start_time, StormWatchWarning.created_at',
+                                     cascade='all, delete-orphan')
+    net_conditions = db.relationship('StormNetCondition', backref='storm', lazy='select',
+                                     order_by='StormNetCondition.time, StormNetCondition.created_at',
+                                     cascade='all, delete-orphan')
+    net_stations = db.relationship('StormNetStation', backref='storm', lazy='select',
+                                   order_by='StormNetStation.time_in, StormNetStation.created_at',
+                                   cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<Storm {self.event_date} {self.name}>'
+
+
+class DamageReport(db.Model):
+    __tablename__ = 'damage_reports'
+
+    id = db.Column(db.Integer, primary_key=True)
+    storm_id = db.Column(db.Integer, db.ForeignKey('storms.id'), nullable=True)
+    reporter_name = db.Column(db.Text, nullable=False)
+    reporter_member_id = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=True)
+    occurred_at = db.Column(db.DateTime, nullable=False,
+                            default=lambda: datetime.now(timezone.utc))
+    damage_type = db.Column(db.Text)  # Wind / Hail / Tornado / Flooding / Other
+    description = db.Column(db.Text)
+    coordinates = db.Column(db.Text)  # lat,lng
+    location_text = db.Column(db.Text)
+    photo_filename = db.Column(db.Text)
+    # How the report was relayed onward: NWS / HSEM / NWSchat / GroupMe / Phone / Other
+    passed_via = db.Column(db.Text)
+    # Moderation: public reports start PENDING; only APPROVED show publicly
+    status = db.Column(db.Text, default='PENDING')  # PENDING / APPROVED / REJECTED
+    source = db.Column(db.Text, default='public')  # public / member / net
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    reporter_member = db.relationship('Member', backref='damage_reports')
+
+    __table_args__ = (
+        db.Index('ix_damage_reports_storm_status', 'storm_id', 'status'),
+    )
+
+    def __repr__(self):
+        return f'<DamageReport {self.occurred_at} {self.damage_type} {self.status}>'
+
+
+class StormWatchWarning(db.Model):
+    """A row in the SkyWarn Work Sheet 'NWS Watches and Warnings' section."""
+    __tablename__ = 'storm_watch_warnings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    storm_id = db.Column(db.Integer, db.ForeignKey('storms.id'), nullable=False, index=True)
+    tsm_watch = db.Column(db.Boolean, default=False)
+    tsm_warning = db.Column(db.Boolean, default=False)
+    tdo_watch = db.Column(db.Boolean, default=False)
+    tdo_warning = db.Column(db.Boolean, default=False)
+    county = db.Column(db.Text)
+    start_time = db.Column(db.Text)  # clock time noted on the sheet, e.g. "14:05"
+    end_time = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def __repr__(self):
+        return f'<StormWatchWarning storm={self.storm_id} {self.county}>'
+
+
+class StormNetCondition(db.Model):
+    """A row in the SkyWarn Work Sheet 'Net Condition' section."""
+    __tablename__ = 'storm_net_conditions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    storm_id = db.Column(db.Integer, db.ForeignKey('storms.id'), nullable=False, index=True)
+    condition = db.Column(db.Text)  # Standby / Green / Yellow / Red / Close
+    reason = db.Column(db.Text)
+    time = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def __repr__(self):
+        return f'<StormNetCondition storm={self.storm_id} {self.condition}>'
+
+
+class StormNetStation(db.Model):
+    """A row in the SkyWarn Work Sheet 'Participating Stations' section."""
+    __tablename__ = 'storm_net_stations'
+
+    id = db.Column(db.Integer, primary_key=True)
+    storm_id = db.Column(db.Integer, db.ForeignKey('storms.id'), nullable=False, index=True)
+    role = db.Column(db.Text)  # Spotter / MICON liaison / NWSchat / Radar / GroupMe / NCS
+    station = db.Column(db.Text)
+    location = db.Column(db.Text)
+    time_in = db.Column(db.Text)
+    time_out = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def __repr__(self):
+        return f'<StormNetStation storm={self.storm_id} {self.station}>'
+
+
 # --- User loader for dual auth ---
 
 @login_manager.user_loader

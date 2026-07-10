@@ -1,0 +1,133 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}{{ 'Edit' if storm else 'Add' }} Storm — Admin{% endblock %}
+
+{% block admin_content %}
+<h1 class="h3 mb-3">{{ 'Edit' if storm else 'Add' }} Storm</h1>
+
+<div class="row">
+  <div class="col-md-8 col-lg-6">
+    <form method="post">
+      {{ form.hidden_tag() }}
+
+      <div class="mb-3">
+        {{ form.name.label(class="form-label") }}
+        {{ form.name(class="form-control") }}
+        {% for e in form.name.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+      </div>
+
+      <div class="row">
+        <div class="col-sm-6 mb-3">
+          {{ form.event_date.label(class="form-label") }}
+          {{ form.event_date(class="form-control") }}
+          {% for e in form.event_date.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+        </div>
+        <div class="col-sm-6 mb-3">
+          {{ form.status.label(class="form-label") }}
+          {{ form.status(class="form-select") }}
+        </div>
+      </div>
+
+      <div class="mb-3">
+        {{ form.nws_event_type.label(class="form-label") }}
+        {{ form.nws_event_type(class="form-control", placeholder="e.g. Tornado Warning") }}
+      </div>
+
+      <div class="mb-3">
+        {{ form.center_coordinates.label(class="form-label") }}
+        {{ form.center_coordinates(class="form-control", placeholder="42.97,-82.42") }}
+        <div class="form-text">Optional — where the map centers for this storm.</div>
+      </div>
+
+      <div class="mb-3">
+        {{ form.event_id.label(class="form-label") }}
+        {{ form.event_id(class="form-select") }}
+        <div class="form-text">Link a SKYWARN event so this storm counts toward the monthly state report.</div>
+      </div>
+
+      <div class="mb-3">
+        {{ form.summary.label(class="form-label") }}
+        {{ form.summary(class="form-control", rows="4") }}
+      </div>
+
+      <hr>
+      <h2 class="h6 text-uppercase text-muted">SkyWarn Work Sheet Header</h2>
+      <div class="row">
+        <div class="col-sm-6 mb-3">
+          {{ form.net_control_name.label(class="form-label") }}
+          {{ form.net_control_name(class="form-control") }}
+        </div>
+        <div class="col-sm-6 mb-3">
+          {{ form.net_control_callsign.label(class="form-label") }}
+          {{ form.net_control_callsign(class="form-control") }}
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-sm-6 mb-3">
+          {{ form.freq_main.label(class="form-label") }}
+          {{ form.freq_main(class="form-control") }}
+        </div>
+        <div class="col-sm-6 mb-3">
+          {{ form.freq_dtx.label(class="form-label") }}
+          {{ form.freq_dtx(class="form-control") }}
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-sm-6 mb-3">
+          {{ form.freq_north.label(class="form-label") }}
+          {{ form.freq_north(class="form-control") }}
+        </div>
+        <div class="col-sm-6 mb-3">
+          {{ form.freq_south.label(class="form-label") }}
+          {{ form.freq_south(class="form-control") }}
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Save</button>
+      <a href="{{ url_for('admin.storms') }}" class="btn btn-outline-secondary">Cancel</a>
+    </form>
+  </div>
+</div>
+
+{% if storm %}
+<hr class="my-4">
+<div class="row">
+  <div class="col-md-8 col-lg-6">
+    <div class="mb-3">
+      <a href="{{ url_for('admin.storm_worksheet', id=storm.id) }}" class="btn btn-primary">
+        Open SkyWarn Work Sheet
+      </a>
+      <div class="form-text">Log NWS watches/warnings, net conditions, participating stations,
+        and weather (damage) reports — then generate the printable worksheet PDF.</div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h2 class="h5 mb-0">SkyWarn Net Logs (ICS-309)</h2>
+      <form method="post" action="{{ url_for('admin.storm_start_net_log', id=storm.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm btn-success">Start SkyWarn Net Log</button>
+      </form>
+    </div>
+    <p class="text-muted small">
+      Starting a net log links this storm to a SKYWARN event, so the activation also
+      counts toward the monthly state report. Uses the standard ICS-309 form.
+    </p>
+    {% if net_logs %}
+    <ul class="list-group">
+      {% for log in net_logs %}
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <a href="{{ url_for('admin.commlog_entries', id=log.id) }}">
+          {{ log.net_name_or_position or log.incident_name }}
+          <span class="text-muted small">· {{ log.op_period_start | format_date }}</span>
+        </a>
+        <a href="{{ url_for('admin.commlog_pdf', id=log.id) }}" class="btn btn-sm btn-outline-secondary">PDF</a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="alert alert-secondary">No net logs for this storm yet.</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

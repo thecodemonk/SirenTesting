@@ -1,0 +1,90 @@
+{% extends "admin/layout.html" %}
+
+{% block title %}Damage Reports — Admin{% endblock %}
+
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3">Storm Damage Reports</h1>
+</div>
+
+<div class="btn-group btn-group-sm mb-3" role="group">
+  <a href="{{ url_for('admin.storm_reports', status='PENDING') }}"
+     class="btn btn-outline-warning {% if status == 'PENDING' %}active{% endif %}">
+    Pending ({{ pending_count }})
+  </a>
+  <a href="{{ url_for('admin.storm_reports', status='APPROVED') }}"
+     class="btn btn-outline-success {% if status == 'APPROVED' %}active{% endif %}">Approved</a>
+  <a href="{{ url_for('admin.storm_reports', status='REJECTED') }}"
+     class="btn btn-outline-secondary {% if status == 'REJECTED' %}active{% endif %}">Rejected</a>
+</div>
+
+{% if reports %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead>
+      <tr>
+        <th>Photo</th>
+        <th>Type</th>
+        <th>Details</th>
+        <th>Location</th>
+        <th>Reporter</th>
+        <th>When</th>
+        <th>Storm</th>
+        <th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in reports %}
+      <tr>
+        <td>
+          {% if r.photo_filename %}
+          <a href="{{ url_for('media_photo', filename=r.photo_filename) }}" target="_blank">
+            <img src="{{ url_for('media_photo', filename=r.photo_filename.replace('.jpg', '_thumb.jpg')) }}"
+                 alt="Damage" style="width: 64px; height: 64px; object-fit: cover;">
+          </a>
+          {% else %}<span class="text-muted small">—</span>{% endif %}
+        </td>
+        <td><span class="badge bg-danger">{{ r.damage_type }}</span></td>
+        <td class="small">{{ r.description or '' }}</td>
+        <td class="small">
+          {{ r.location_text or '' }}
+          {% if r.coordinates %}<br><span class="text-muted">{{ r.coordinates }}</span>{% endif %}
+        </td>
+        <td class="small">{{ r.reporter_name }}<br><span class="text-muted">{{ r.source }}</span></td>
+        <td class="small">{{ r.occurred_at | format_date('%b %d, %Y %I:%M %p') }}</td>
+        <td>
+          <form method="post" action="{{ url_for('admin.storm_report_action', id=r.id) }}" class="d-flex gap-1">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="return_status" value="{{ status }}">
+            <select name="storm_id" class="form-select form-select-sm" style="min-width: 120px;">
+              <option value="0" {% if not r.storm_id %}selected{% endif %}>— none —</option>
+              {% for s in storms %}
+              <option value="{{ s.id }}" {% if r.storm_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+              {% endfor %}
+            </select>
+            <button name="action" value="assign" class="btn btn-sm btn-outline-secondary">Set</button>
+          </form>
+        </td>
+        <td class="text-end text-nowrap">
+          <form method="post" action="{{ url_for('admin.storm_report_action', id=r.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="return_status" value="{{ status }}">
+            {% if r.status != 'APPROVED' %}
+            <button name="action" value="approve" class="btn btn-sm btn-success">Approve</button>
+            {% endif %}
+            {% if r.status != 'REJECTED' %}
+            <button name="action" value="reject" class="btn btn-sm btn-outline-secondary">Reject</button>
+            {% endif %}
+            <button name="action" value="delete" class="btn btn-sm btn-outline-danger"
+                    onclick="return confirm('Delete this report permanently?')">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="alert alert-secondary">No {{ status|lower }} reports.</div>
+{% endif %}
+{% endblock %}

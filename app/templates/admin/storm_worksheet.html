@@ -1,0 +1,227 @@
+{% extends "admin/layout.html" %}
+{% block title %}SkyWarn Work Sheet — {{ storm.name }} — ARPSC Manager{% endblock %}
+
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h1 class="h3 mb-0">SkyWarn Work Sheet</h1>
+  <a href="{{ url_for('admin.storm_worksheet_pdf', id=storm.id) }}"
+     class="btn btn-success" target="_blank">Generate Worksheet PDF</a>
+</div>
+
+{# --- Header --- #}
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="row small">
+      <div class="col-md-6">
+        <div><span class="text-muted">Storm:</span> <strong>{{ storm.name }}</strong></div>
+        <div><span class="text-muted">Date:</span> {{ storm.event_date | format_date }}</div>
+        <div><span class="text-muted">Net Control:</span>
+          {{ storm.net_control_name or '—' }}{% if storm.net_control_callsign %} ({{ storm.net_control_callsign }}){% endif %}</div>
+      </div>
+      <div class="col-md-6">
+        <div><span class="text-muted">Main Freq.:</span> {{ storm.freq_main or '—' }}</div>
+        <div><span class="text-muted">North / South:</span> {{ storm.freq_north or '—' }} / {{ storm.freq_south or '—' }}</div>
+        <div><span class="text-muted">DTX Tx:</span> {{ storm.freq_dtx or '—' }}</div>
+      </div>
+    </div>
+    <a href="{{ url_for('admin.storm_edit', id=storm.id) }}"
+       class="btn btn-sm btn-outline-secondary mt-2">Edit header / storm details</a>
+  </div>
+</div>
+
+{# --- NWS Watches and Warnings --- #}
+<div class="card mb-4">
+  <div class="card-header fw-bold">NWS Watches &amp; Warnings</div>
+  <div class="card-body">
+    {% for w in storm.watch_warnings %}
+    <form method="post" action="{{ url_for('admin.storm_worksheet_watch_update', id=storm.id, row_id=w.id) }}"
+          class="row g-2 align-items-center mb-2 pb-2 border-bottom">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-auto form-check">
+        <input class="form-check-input" type="checkbox" name="tsm_watch" id="tsmw{{ w.id }}" {% if w.tsm_watch %}checked{% endif %}>
+        <label class="form-check-label small" for="tsmw{{ w.id }}">TSM Watch</label>
+      </div>
+      <div class="col-auto form-check">
+        <input class="form-check-input" type="checkbox" name="tsm_warning" id="tsmwn{{ w.id }}" {% if w.tsm_warning %}checked{% endif %}>
+        <label class="form-check-label small" for="tsmwn{{ w.id }}">TSM Warn</label>
+      </div>
+      <div class="col-auto form-check">
+        <input class="form-check-input" type="checkbox" name="tdo_watch" id="tdow{{ w.id }}" {% if w.tdo_watch %}checked{% endif %}>
+        <label class="form-check-label small" for="tdow{{ w.id }}">TDO Watch</label>
+      </div>
+      <div class="col-auto form-check">
+        <input class="form-check-input" type="checkbox" name="tdo_warning" id="tdown{{ w.id }}" {% if w.tdo_warning %}checked{% endif %}>
+        <label class="form-check-label small" for="tdown{{ w.id }}">TDO Warn</label>
+      </div>
+      <div class="col-sm-2"><input class="form-control form-control-sm" name="county" value="{{ w.county or '' }}" placeholder="County"></div>
+      <div class="col-auto"><input class="form-control form-control-sm" name="start_time" value="{{ w.start_time or '' }}" placeholder="Start" style="max-width:6rem"></div>
+      <div class="col-auto"><input class="form-control form-control-sm" name="end_time" value="{{ w.end_time or '' }}" placeholder="End" style="max-width:6rem"></div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-primary">Save</button>
+        <button class="btn btn-sm btn-outline-danger"
+                formaction="{{ url_for('admin.storm_worksheet_watch_delete', id=storm.id, row_id=w.id) }}"
+                onclick="return confirm('Remove this row?')">Delete</button>
+      </div>
+    </form>
+    {% else %}
+    <p class="text-muted small">No watches or warnings logged yet.</p>
+    {% endfor %}
+    <form method="post" action="{{ url_for('admin.storm_worksheet_watch_add', id=storm.id) }}"
+          class="row g-2 align-items-end mt-2">
+      {{ watch_form.hidden_tag() }}
+      <div class="col-auto form-check">
+        {{ watch_form.tsm_watch(class="form-check-input") }} {{ watch_form.tsm_watch.label(class="form-check-label small") }}
+      </div>
+      <div class="col-auto form-check">
+        {{ watch_form.tsm_warning(class="form-check-input") }} {{ watch_form.tsm_warning.label(class="form-check-label small") }}
+      </div>
+      <div class="col-auto form-check">
+        {{ watch_form.tdo_watch(class="form-check-input") }} {{ watch_form.tdo_watch.label(class="form-check-label small") }}
+      </div>
+      <div class="col-auto form-check">
+        {{ watch_form.tdo_warning(class="form-check-input") }} {{ watch_form.tdo_warning.label(class="form-check-label small") }}
+      </div>
+      <div class="col-sm-2">{{ watch_form.county(class="form-control form-control-sm", placeholder="County") }}</div>
+      <div class="col-auto">{{ watch_form.start_time(class="form-control form-control-sm", placeholder="Start", style="max-width:6rem") }}</div>
+      <div class="col-auto">{{ watch_form.end_time(class="form-control form-control-sm", placeholder="End", style="max-width:6rem") }}</div>
+      <div class="col-auto"><button class="btn btn-sm btn-success">Add</button></div>
+    </form>
+  </div>
+</div>
+
+{# --- Net Condition --- #}
+<div class="card mb-4">
+  <div class="card-header fw-bold">Net Condition</div>
+  <div class="card-body">
+    {% for c in storm.net_conditions %}
+    <form method="post" action="{{ url_for('admin.storm_worksheet_condition_update', id=storm.id, row_id=c.id) }}"
+          class="row g-2 align-items-center mb-2 pb-2 border-bottom">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-auto">
+        <select name="condition" class="form-select form-select-sm">
+          {% for val, lbl in condition_form.condition.choices %}
+          <option value="{{ val }}" {% if c.condition == val %}selected{% endif %}>{{ lbl }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-6"><input class="form-control form-control-sm" name="reason" value="{{ c.reason or '' }}" placeholder="Reason"></div>
+      <div class="col-auto"><input class="form-control form-control-sm" name="time" value="{{ c.time or '' }}" placeholder="Time" style="max-width:6rem"></div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-primary">Save</button>
+        <button class="btn btn-sm btn-outline-danger"
+                formaction="{{ url_for('admin.storm_worksheet_condition_delete', id=storm.id, row_id=c.id) }}"
+                onclick="return confirm('Remove this row?')">Delete</button>
+      </div>
+    </form>
+    {% else %}
+    <p class="text-muted small">No condition changes logged yet.</p>
+    {% endfor %}
+    <form method="post" action="{{ url_for('admin.storm_worksheet_condition_add', id=storm.id) }}"
+          class="row g-2 align-items-end mt-2">
+      {{ condition_form.hidden_tag() }}
+      <div class="col-auto">{{ condition_form.condition(class="form-select form-select-sm") }}</div>
+      <div class="col-sm-6">{{ condition_form.reason(class="form-control form-control-sm", placeholder="Reason") }}</div>
+      <div class="col-auto">{{ condition_form.time(class="form-control form-control-sm", placeholder="Time", style="max-width:6rem") }}</div>
+      <div class="col-auto"><button class="btn btn-sm btn-success">Add</button></div>
+    </form>
+  </div>
+</div>
+
+{# --- Participating Stations --- #}
+<div class="card mb-4">
+  <div class="card-header fw-bold">Participating Stations</div>
+  <div class="card-body">
+    {% for s in storm.net_stations %}
+    <form method="post" action="{{ url_for('admin.storm_worksheet_station_update', id=storm.id, row_id=s.id) }}"
+          class="row g-2 align-items-center mb-2 pb-2 border-bottom">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-auto">
+        <select name="role" class="form-select form-select-sm">
+          {% for val, lbl in station_form.role.choices %}
+          <option value="{{ val }}" {% if s.role == val %}selected{% endif %}>{{ lbl }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto"><input class="form-control form-control-sm" name="station" value="{{ s.station or '' }}" placeholder="Callsign" style="max-width:8rem"></div>
+      <div class="col-sm-4"><input class="form-control form-control-sm" name="location" value="{{ s.location or '' }}" placeholder="Location"></div>
+      <div class="col-auto"><input class="form-control form-control-sm" name="time_in" value="{{ s.time_in or '' }}" placeholder="In" style="max-width:6rem"></div>
+      <div class="col-auto"><input class="form-control form-control-sm" name="time_out" value="{{ s.time_out or '' }}" placeholder="Out" style="max-width:6rem"></div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-primary">Save</button>
+        <button class="btn btn-sm btn-outline-danger"
+                formaction="{{ url_for('admin.storm_worksheet_station_delete', id=storm.id, row_id=s.id) }}"
+                onclick="return confirm('Remove this row?')">Delete</button>
+      </div>
+    </form>
+    {% else %}
+    <p class="text-muted small">No participating stations logged yet.</p>
+    {% endfor %}
+    <form method="post" action="{{ url_for('admin.storm_worksheet_station_add', id=storm.id) }}"
+          class="row g-2 align-items-end mt-2">
+      {{ station_form.hidden_tag() }}
+      <div class="col-auto">{{ station_form.role(class="form-select form-select-sm") }}</div>
+      <div class="col-auto">{{ station_form.station(class="form-control form-control-sm", placeholder="Callsign", style="max-width:8rem") }}</div>
+      <div class="col-sm-4">{{ station_form.location(class="form-control form-control-sm", placeholder="Location") }}</div>
+      <div class="col-auto">{{ station_form.time_in(class="form-control form-control-sm", placeholder="In", style="max-width:6rem") }}</div>
+      <div class="col-auto">{{ station_form.time_out(class="form-control form-control-sm", placeholder="Out", style="max-width:6rem") }}</div>
+      <div class="col-auto"><button class="btn btn-sm btn-success">Add</button></div>
+    </form>
+  </div>
+</div>
+
+{# --- Weather Reports (damage) --- #}
+<div class="card mb-4">
+  <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+    <span>Weather Reports <span class="text-muted small">(Time – Effect – Location)</span></span>
+    <a href="{{ url_for('admin.storm_reports') }}" class="btn btn-sm btn-outline-secondary">All Damage Reports</a>
+  </div>
+  <div class="card-body">
+    {% for r in storm.reports %}
+    <form method="post" action="{{ url_for('admin.storm_worksheet_damage_update', id=storm.id, row_id=r.id) }}"
+          class="row g-2 align-items-center mb-2 pb-2 border-bottom">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-auto"><input class="form-control form-control-sm" name="reporter_name" value="{{ r.reporter_name }}" placeholder="Station" style="max-width:9rem"></div>
+      <div class="col-auto"><input class="form-control form-control-sm" type="datetime-local" name="occurred_at" value="{{ r.occurred_at.strftime('%Y-%m-%dT%H:%M') if r.occurred_at else '' }}"></div>
+      <div class="col-auto">
+        <select name="damage_type" class="form-select form-select-sm">
+          {% for val, lbl in damage_form.damage_type.choices %}
+          <option value="{{ val }}" {% if r.damage_type == val %}selected{% endif %}>{{ lbl }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-3"><input class="form-control form-control-sm" name="location_text" value="{{ r.location_text or '' }}" placeholder="Location"></div>
+      <div class="col-auto">
+        <select name="passed_via" class="form-select form-select-sm">
+          {% for val, lbl in damage_form.passed_via.choices %}
+          <option value="{{ val }}" {% if (r.passed_via or '') == val %}selected{% endif %}>{{ lbl }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto"><span class="badge bg-secondary">{{ r.source }}</span></div>
+      <div class="col-12"><input class="form-control form-control-sm" name="description" value="{{ r.description or '' }}" placeholder="Details (optional)"></div>
+      <div class="col-auto">
+        <button class="btn btn-sm btn-primary">Save</button>
+        <button class="btn btn-sm btn-outline-danger"
+                formaction="{{ url_for('admin.storm_worksheet_damage_delete', id=storm.id, row_id=r.id) }}"
+                onclick="return confirm('Delete this report?')">Delete</button>
+      </div>
+    </form>
+    {% else %}
+    <p class="text-muted small">No weather reports logged yet.</p>
+    {% endfor %}
+    <form method="post" action="{{ url_for('admin.storm_worksheet_damage_add', id=storm.id) }}"
+          class="row g-2 align-items-end mt-2">
+      {{ damage_form.hidden_tag() }}
+      <div class="col-auto">{{ damage_form.reporter_name(class="form-control form-control-sm", placeholder="Station / reporter", style="max-width:9rem") }}</div>
+      <div class="col-auto">{{ damage_form.occurred_at(class="form-control form-control-sm", type="datetime-local") }}</div>
+      <div class="col-auto">{{ damage_form.damage_type(class="form-select form-select-sm") }}</div>
+      <div class="col-sm-3">{{ damage_form.location_text(class="form-control form-control-sm", placeholder="Location") }}</div>
+      <div class="col-auto">{{ damage_form.passed_via(class="form-select form-select-sm") }}</div>
+      <div class="col-12">{{ damage_form.description(class="form-control form-control-sm", rows="1", placeholder="Details (optional)") }}</div>
+      <div class="col-auto"><button class="btn btn-sm btn-success">Log Report</button></div>
+    </form>
+  </div>
+</div>
+
+<a href="{{ url_for('admin.storms') }}" class="btn btn-secondary btn-sm">Back to Storms</a>
+{% endblock %}
